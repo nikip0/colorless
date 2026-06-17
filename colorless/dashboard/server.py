@@ -176,6 +176,9 @@ def make_handler(data: DashboardData, token: "str | None" = None, tokens: "dict 
                 length = int(self.headers.get("Content-Length", 0) or 0)
             except ValueError:
                 length = 0
+            if length > 1_000_000:           # approve/deny bodies are tiny — cap to avoid memory abuse
+                self._send(413, {"error": "payload too large"})
+                return
             raw = self.rfile.read(length) if length else b"{}"
             try:
                 payload = json.loads(raw or b"{}")

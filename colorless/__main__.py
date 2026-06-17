@@ -89,8 +89,13 @@ def main(argv=None) -> int:
         from .dashboard.server import serve
         tokens = None
         if args.tokens_file:
-            with open(args.tokens_file) as f:
-                tokens = json.load(f)
+            try:
+                with open(args.tokens_file) as f:
+                    tokens = json.load(f)
+            except (OSError, ValueError) as e:
+                raise SystemExit(f"--tokens-file: {e}")
+            if not isinstance(tokens, dict):
+                raise SystemExit("--tokens-file must be a JSON object of {name: token}")
         serve(args.ledger, args.queue, args.host, args.port,
               token=args.token, tokens=tokens, token_name=args.token_name)
         return 0
