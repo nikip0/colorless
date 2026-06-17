@@ -25,8 +25,8 @@ dependencies = []  # zero dependencies, by design
 colorless = "colorless.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/USERNAME/colorless"
-Issues = "https://github.com/USERNAME/colorless/issues"
+Homepage = "https://github.com/nikip0/colorless"
+Issues = "https://github.com/nikip0/colorless/issues"
 
 [tool.setuptools.packages.find]
 include = ["colorless*"]

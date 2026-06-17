@@ -34,7 +34,7 @@ Today most teams have neither. They have *traces* and *eval scores from developm
 Not on PyPI yet (the name isn't final). For now, from source — zero dependencies, so it's instant:
 
 ```bash
-git clone https://github.com/<your-username>/colorless.git
+git clone https://github.com/nikip0/colorless.git
 cd colorless
 pip install -e .
 ```
