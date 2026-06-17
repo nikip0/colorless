@@ -10,3 +10,5 @@ dist/
 *.anchor.json
 audit_anchor.json
 .DS_Store
+# local strategy / planning notes — never publish
+notes/
