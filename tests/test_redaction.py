@@ -30,6 +30,19 @@ class RedactionTest(unittest.TestCase):
         })
         self.assertTrue(all(out[k] == "***" for k in "abcd"), out)
 
+    def test_redacts_nested_dicts_and_lists(self):
+        out = redact_secrets({
+            "config": {"api_key": "abc", "host": "x"},
+            "items": [{"token": "t"}, "sk-ABCDEFGH12345678", "plain"],
+            "ok": "fine",
+        })
+        self.assertEqual(out["config"]["api_key"], "***")   # nested secret key masked
+        self.assertEqual(out["config"]["host"], "x")
+        self.assertEqual(out["items"][0]["token"], "***")   # secret key inside a list item
+        self.assertEqual(out["items"][1], "***")            # secret-pattern string in a list
+        self.assertEqual(out["items"][2], "plain")
+        self.assertEqual(out["ok"], "fine")
+
     def test_default_colorless_redacts_secrets(self):
         path = os.path.join(tempfile.mkdtemp(), "log.jsonl")
         w = Colorless(ledger=path)                      # auto-redaction ON by default

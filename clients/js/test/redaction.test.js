@@ -24,3 +24,17 @@ test("redacts bearer / github / aws / slack", () => {
   });
   for (const k of ["a", "b", "c", "d"]) assert.equal(out[k], "***");
 });
+
+test("redacts nested objects and arrays", () => {
+  const out = redactSecrets({
+    config: { api_key: "abc", host: "x" },
+    items: [{ token: "t" }, "sk-ABCDEFGH12345678", "plain"],
+    ok: "fine",
+  });
+  assert.equal(out.config.api_key, "***");
+  assert.equal(out.config.host, "x");
+  assert.equal(out.items[0].token, "***");
+  assert.equal(out.items[1], "***");
+  assert.equal(out.items[2], "plain");
+  assert.equal(out.ok, "fine");
+});

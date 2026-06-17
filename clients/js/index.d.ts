@@ -71,8 +71,10 @@ export class UnknownTool extends ColorlessError {
   tool: string;
 }
 
-export type ApprovalHandler = (action: Action, decision: Decision) => boolean | Promise<boolean>;
+export type ApprovalDecision = boolean | { approved: boolean; approver?: string | null };
+export type ApprovalHandler = (action: Action, decision: Decision) => ApprovalDecision | Promise<ApprovalDecision>;
 export type Redactor = (args: Record<string, any>) => Record<string, any>;
+export type LedgerEntry = Record<string, any>;
 
 export interface ColorlessOptions {
   ledger?: string | Ledger;
@@ -89,6 +91,7 @@ export class Colorless {
   deny(name?: string | null, when?: Predicate, reason?: string): this;
   requireApproval(name?: string | null, when?: Predicate, reason?: string): this;
   check(name: string, args?: Record<string, any>): Decision;
+  subscribe(cb: (entry: LedgerEntry) => void): (entry: LedgerEntry) => void;
   run<T>(name: string, args: Record<string, any>, fn: () => T | Promise<T>): Promise<T>;
   guard<F extends (...args: any[]) => any>(
     fn: F,

@@ -58,3 +58,23 @@ test("redaction is on by default", async () => {
   assert.equal(args.api_key, "***");
   assert.equal(args.endpoint, "/v1/x");
 });
+
+test("subscribe fires for every ledger entry (parity with Python)", async () => {
+  const cl = new Colorless({ ledger: tmp() }).deny("danger");
+  const seen = [];
+  cl.subscribe((e) => seen.push(e));
+  await cl.run("ok", { a: 1 }, () => "y");                       // allow -> 1 entry
+  await assert.rejects(() => cl.run("danger", {}, () => "x"), PolicyDenied);  // deny -> 1 entry
+  assert.equal(seen.length, 2);
+  assert.equal(seen[1].decision, "deny");
+});
+
+test("onApproval can return {approved, approver} -> sealed in the ledger", async () => {
+  const cl = new Colorless({ ledger: tmp(), onApproval: async () => ({ approved: true, approver: "alice" }) });
+  cl.requireApproval("refund");
+  const refund = cl.guard(({ amount }) => `ok ${amount}`, { name: "refund" });
+  assert.equal(await refund({ amount: 20 }), "ok 20");
+  const e = cl.entries("refund").at(-1);
+  assert.equal(e.approved, true);
+  assert.equal(e.approver, "alice");
+});

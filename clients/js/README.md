@@ -59,6 +59,7 @@ colorless verify agent.jsonl    # ✓ verifies a Node-written ledger (ASCII / in
 - `.deny / .allow / .requireApproval(name?, when?, reason?)` — ordered rules, first match wins.
 - `.guard(fn, { name })` — wrap a tool (sync or async). `.run(name, args, fn)` — gate a call directly.
 - `.verify()` · `.head()` · `.entries(ref?)` · `.anchor(path)` · `.verifyAgainstAnchor(path)`.
+- `.subscribe(cb)` — fire `cb(entry)` after every sealed action (build alerts/exporters). `onApproval` may return `{ approved, approver }` to seal *who* authorized it.
 - `ToolGuard(cl).add(name, fn).call(name, args)` — gate + seal one tool call.
 
 MIT © 2026 Niki Petrov

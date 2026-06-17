@@ -25,14 +25,23 @@ _SECRET_VALUE = re.compile(
 MASK = "***"
 
 
+def _redact_value(v):
+    if isinstance(v, dict):
+        return redact_secrets(v)
+    if isinstance(v, list):
+        return [_redact_value(x) for x in v]
+    if isinstance(v, str) and _SECRET_VALUE.search(v):
+        return MASK
+    return v
+
+
 def redact_secrets(args: dict) -> dict:
-    """Return a shallow copy of `args` with sensitive keys/values masked."""
+    """Return a copy of `args` with sensitive keys and values masked — recursively, so secrets
+    nested inside dicts or lists are masked too (a trust tool must not leak a nested key)."""
     out = {}
     for k, v in args.items():
         if isinstance(k, str) and _SECRET_KEY.search(k):
             out[k] = MASK
-        elif isinstance(v, str) and _SECRET_VALUE.search(v):
-            out[k] = MASK
         else:
-            out[k] = v
+            out[k] = _redact_value(v)
     return out

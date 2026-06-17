@@ -4,12 +4,19 @@ const SECRET_KEY = /(api[_-]?key|secret|password|passwd|token|authorization|auth
 const SECRET_VALUE = /(sk-[A-Za-z0-9_-]{8,}|Bearer\s+\S+|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,})/;
 export const MASK = "***";
 
+function redactValue(v) {
+  if (Array.isArray(v)) return v.map(redactValue);
+  if (v && typeof v === "object") return redactSecrets(v);
+  if (typeof v === "string" && SECRET_VALUE.test(v)) return MASK;
+  return v;
+}
+
+// recursive: masks sensitive keys/values nested inside dicts and lists too.
 export function redactSecrets(args) {
   const out = {};
   for (const [k, v] of Object.entries(args || {})) {
     if (typeof k === "string" && SECRET_KEY.test(k)) out[k] = MASK;
-    else if (typeof v === "string" && SECRET_VALUE.test(v)) out[k] = MASK;
-    else out[k] = v;
+    else out[k] = redactValue(v);
   }
   return out;
 }
