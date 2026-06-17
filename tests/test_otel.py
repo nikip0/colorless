@@ -68,6 +68,13 @@ class OtelTest(unittest.TestCase):
         self.assertFalse(deny_span.attributes["colorless.executed"])
         self.assertTrue(all(s.ended for s in tracer.spans))  # spans always closed
 
+    def test_large_arguments_are_truncated(self):
+        entry = {"seq": 0, "decision": "allow", "executed": True, "ok": True,
+                 "action": {"name": "ingest", "args": {"blob": "x" * 50000}}}
+        a = genai_attributes(entry)
+        self.assertLessEqual(len(a["gen_ai.tool.call.arguments"]), 4096 + 20)
+        self.assertIn("truncated", a["gen_ai.tool.call.arguments"])
+
     def test_export_ledger_batch(self):
         cl = Colorless(ledger=self.path)
         cl.run("a", {"x": 1}, lambda: "y")

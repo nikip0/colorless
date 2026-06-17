@@ -20,6 +20,9 @@ import json
 
 from .ledger import Ledger
 
+# OTel backends cap attribute value length; keep the serialized args well under typical limits.
+_MAX_ARG_LEN = 4096
+
 
 def genai_attributes(entry: dict) -> dict:
     """Map one sealed ledger entry to OpenTelemetry GenAI semantic-convention attributes (plus a
@@ -37,7 +40,10 @@ def genai_attributes(entry: dict) -> dict:
     }
     args = action.get("args")
     if args is not None:
-        attrs["gen_ai.tool.call.arguments"] = json.dumps(args, sort_keys=True, default=str)
+        blob = json.dumps(args, sort_keys=True, default=str)
+        if len(blob) > _MAX_ARG_LEN:
+            blob = blob[:_MAX_ARG_LEN] + "...(truncated)"
+        attrs["gen_ai.tool.call.arguments"] = blob
     if entry.get("reason"):
         attrs["colorless.reason"] = entry["reason"]
     if entry.get("error"):
