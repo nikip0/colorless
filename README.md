@@ -3,7 +3,7 @@
 **Authorize, gate, and prove every action your AI agent takes.**
 Tamper-evident. Zero dependencies. ~5 lines of code.
 
-![tests](https://img.shields.io/badge/tests-49%20passing-brightgreen)
+[![CI](https://github.com/nikip0/colorless/actions/workflows/ci.yml/badge.svg)](https://github.com/nikip0/colorless/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![dependencies](https://img.shields.io/badge/dependencies-0-blueviolet)
 ![license](https://img.shields.io/badge/license-MIT-green)

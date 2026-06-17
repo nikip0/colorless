@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python:
+    name: Python tests (zero-dep)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run test suite (no install needed — the core is dependency-free)
+        run: python -m unittest discover -s tests -p 'test_*.py' -v
+
+  node:
+    name: JS/TS tests (zero-dep)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: ["18", "20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Run JS test suite
+        run: node --test
+        working-directory: clients/js
+
+  interop:
+    name: Cross-language verify (Node writes, Python verifies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Node writes a tamper-evident ledger; Python CLI verifies it
+        run: |
+          node -e "import('./clients/js/index.js').then(async ({Colorless,ToolGuard})=>{const cl=new Colorless({ledger:'xlang.jsonl'}).deny('danger');const tg=new ToolGuard(cl).add('search',({q})=>'ok').add('danger',()=>'x');await tg.call('search',{q:'hi'});try{await tg.call('danger',{})}catch(e){}console.log('JS verify:',cl.verify().ok)})"
+          python -m colorless verify xlang.jsonl
