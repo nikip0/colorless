@@ -26,9 +26,10 @@ def _now() -> str:
 
 
 class ApprovalQueue:
-    def __init__(self, path: str = "colorless_approvals.json"):
+    def __init__(self, path: str = "colorless_approvals.json", on_request=None):
         self.path = str(path)
         self._lock = threading.Lock()
+        self.on_request = on_request   # cb(record) fired when a pending approval is created (alerts)
 
     def _read(self) -> list:
         if not os.path.exists(self.path):
@@ -62,14 +63,20 @@ class ApprovalQueue:
             lock_f.close()
 
     def request(self, action: dict) -> str:
-        """Enqueue a pending approval; returns its id."""
+        """Enqueue a pending approval; returns its id. Fires `on_request` best-effort AFTER the lock
+        is released, so a slow alert (network POST) never blocks other enqueues."""
+        rec = {"id": uuid.uuid4().hex[:12], "action": action, "status": "pending",
+               "requested_at": _now(), "decided_at": None}
         with self._lock, self._file_lock():
             rows = self._read()
-            rid = uuid.uuid4().hex[:12]
-            rows.append({"id": rid, "action": action, "status": "pending",
-                         "requested_at": _now(), "decided_at": None})
+            rows.append(rec)
             self._write(rows)
-            return rid
+        if self.on_request:
+            try:
+                self.on_request(rec)
+            except Exception:
+                pass  # an alert must never break the enqueue
+        return rec["id"]
 
     def pending(self) -> list:
         return [r for r in self._read() if r.get("status") == "pending"]

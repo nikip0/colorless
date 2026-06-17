@@ -186,6 +186,21 @@ instrument(cl)                 # live: pip install 'colorless[otel]', or pass yo
 export_ledger("agent.jsonl")   # or batch-replay an existing ledger into your backend
 ```
 
+## Alerting
+
+Get a Slack/webhook ping when an action is blocked, errors, or needs a human — built on the same
+hooks, zero-dependency, and fired *off the hot path* so a slow endpoint never stalls your agent:
+
+```python
+from colorless import Colorless
+from colorless.alerts import slack_alerter, approval_alerter
+from colorless.dashboard import ApprovalQueue, queue_approval
+
+q  = ApprovalQueue(on_request=approval_alerter(SLACK_URL, slack=True))  # "needs approval"
+cl = Colorless("agent.jsonl", on_approval=queue_approval(q))
+cl.subscribe(slack_alerter(SLACK_URL))   # alert when an action is denied / unapproved / errors
+```
+
 ## JavaScript / TypeScript
 
 colorless has a zero-dependency JS/TS SDK too (`clients/js`) — first-class TypeScript types and the
