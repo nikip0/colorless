@@ -54,6 +54,17 @@ class ApprovalQueueTest(unittest.TestCase):
         on_approval = queue_approval(self.q, poll=0.02, timeout=0.1)
         self.assertFalse(on_approval({"name": "x", "args": {}}, None))   # silence -> deny
 
+    def test_concurrent_requests_lose_nothing(self):
+        # the locked read-modify-write must not drop entries under simultaneous writers
+        def add(i):
+            self.q.request({"name": f"a{i}", "args": {}})
+        ts = [threading.Thread(target=add, args=(i,)) for i in range(25)]
+        for t in ts:
+            t.start()
+        for t in ts:
+            t.join()
+        self.assertEqual(len(self.q.all()), 25)
+
 
 class DashboardDataTest(unittest.TestCase):
     def _seed(self):

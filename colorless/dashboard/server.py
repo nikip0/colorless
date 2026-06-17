@@ -24,7 +24,7 @@ class DashboardData:
 
     def feed(self, limit: int = 500) -> list:
         rows = self.ledger.entries()
-        return list(reversed(rows))[:limit]  # newest first
+        return list(reversed(rows[-limit:]))  # newest first, only the last `limit`
 
     def verify(self) -> dict:
         return self.ledger.verify()
@@ -124,6 +124,10 @@ def serve(ledger_path: str, queue_path: "str | None" = None,
     queue = ApprovalQueue(queue_path) if queue_path else ApprovalQueue()
     data = DashboardData(ledger_path, queue)
     httpd = ThreadingHTTPServer((host, port), make_handler(data))
+    if host not in ("127.0.0.1", "localhost", "::1"):
+        print("WARNING: binding to a non-loopback host exposes the dashboard with NO authentication "
+              "— anyone who can reach it can read the audit log and approve/deny actions. Keep it on "
+              "127.0.0.1, or put it behind an authenticating proxy.")
     print(f"colorless dashboard → http://{host}:{port}   (ledger: {ledger_path})")
     try:
         httpd.serve_forever()

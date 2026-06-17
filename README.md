@@ -137,6 +137,27 @@ colorless anchor        agent.jsonl agent.anchor.json  # publish this snapshot e
 colorless verify-anchor agent.jsonl agent.anchor.json
 ```
 
+## Dashboard
+
+A zero-dependency web control room over the ledger — live action feed, pending approvals you
+approve/deny on screen, integrity status, and one-click audit export:
+
+```bash
+colorless dashboard agent.jsonl        # → http://127.0.0.1:8787
+```
+
+Wire live human approvals to it, so an agent blocks until you click **Approve**:
+
+```python
+from colorless import Colorless
+from colorless.dashboard import ApprovalQueue, queue_approval
+
+q = ApprovalQueue()
+cl = Colorless("agent.jsonl", on_approval=queue_approval(q))   # blocks until a human resolves it
+```
+
+See it with seeded data: `python3 examples/dashboard_demo.py`.
+
 ## Integrations
 
 The core is framework-agnostic; these add turnkey wiring. Each adapter imports **no** third-party

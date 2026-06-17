@@ -7,12 +7,18 @@ restart and can be shared between the agent process and the dashboard process.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
 import time
 import uuid
 from datetime import datetime, timezone
+
+try:
+    import fcntl  # POSIX advisory file locking — serialises the queue ACROSS processes
+except ImportError:  # pragma: no cover - Windows
+    fcntl = None
 
 
 def _now() -> str:
@@ -39,9 +45,25 @@ class ApprovalQueue:
             json.dump(rows, f, indent=2)
         os.replace(tmp, self.path)  # atomic — never leaves a half-written queue
 
+    @contextlib.contextmanager
+    def _file_lock(self):
+        """Exclusive advisory lock around a read-modify-write, so a SEPARATE process (the agent
+        enqueuing vs. the dashboard resolving) can't clobber the file and lose an update. Locks a
+        dedicated sidecar file (never os.replace'd, so the inode stays stable). No-op without fcntl."""
+        if fcntl is None:  # pragma: no cover - Windows
+            yield
+            return
+        lock_f = open(self.path + ".lock", "w")
+        try:
+            fcntl.flock(lock_f, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(lock_f, fcntl.LOCK_UN)
+            lock_f.close()
+
     def request(self, action: dict) -> str:
         """Enqueue a pending approval; returns its id."""
-        with self._lock:
+        with self._lock, self._file_lock():
             rows = self._read()
             rid = uuid.uuid4().hex[:12]
             rows.append({"id": rid, "action": action, "status": "pending",
@@ -63,7 +85,7 @@ class ApprovalQueue:
 
     def resolve(self, rid: str, approved: bool) -> bool:
         """Approve/deny a pending request. Returns False if it's unknown or already decided."""
-        with self._lock:
+        with self._lock, self._file_lock():
             rows = self._read()
             for r in rows:
                 if r.get("id") == rid and r.get("status") == "pending":

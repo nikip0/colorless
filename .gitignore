@@ -12,3 +12,6 @@ audit_anchor.json
 .DS_Store
 # local strategy / planning notes — never publish
 notes/
+# dashboard approval-queue + lock artifacts
+*approvals*.json
+*.lock
