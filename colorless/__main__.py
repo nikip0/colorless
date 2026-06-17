@@ -48,6 +48,10 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--port", type=int, default=8787)
     d.add_argument("--token", default=None,
                    help="access token (default: generated; env COLORLESS_DASHBOARD_TOKEN; '' disables)")
+    d.add_argument("--token-name", default="owner",
+                   help="label for --token, recorded as the approver identity (default: owner)")
+    d.add_argument("--tokens-file", default=None,
+                   help="JSON {name: token} for multi-user access (approver = the authenticated name)")
     return p
 
 
@@ -83,7 +87,12 @@ def main(argv=None) -> int:
 
     if args.cmd == "dashboard":
         from .dashboard.server import serve
-        serve(args.ledger, args.queue, args.host, args.port, args.token)
+        tokens = None
+        if args.tokens_file:
+            with open(args.tokens_file) as f:
+                tokens = json.load(f)
+        serve(args.ledger, args.queue, args.host, args.port,
+              token=args.token, tokens=tokens, token_name=args.token_name)
         return 0
 
     return 2

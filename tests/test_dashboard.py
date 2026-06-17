@@ -239,6 +239,41 @@ class HttpAuthTest(unittest.TestCase):
         self.assertEqual(cm.exception.code, 401)
         self.assertIn("control room", urlopen(base + "/", timeout=5).read().decode())  # HTML shell is public
 
+    def test_named_token_sets_authenticated_approver(self):
+        d = tempfile.mkdtemp()
+        lpath = os.path.join(d, "log.jsonl")
+        Colorless(ledger=lpath)  # ensure the ledger file exists
+        q = ApprovalQueue(os.path.join(d, "q.json"))
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0),
+                                    make_handler(DashboardData(lpath, q), tokens={"alice": "tokA", "bob": "tokB"}))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+
+        def post(path, body, tok):
+            headers = {"Content-Type": "application/json"}
+            if tok:
+                headers["Authorization"] = "Bearer " + tok
+            return urlopen(Request(base + path, data=json.dumps(body).encode(), headers=headers), timeout=5)
+
+        rid = q.request({"name": "send", "args": {"amount": 9}})
+        self.assertTrue(json.loads(post("/api/approve", {"id": rid}, "tokA").read())["ok"])
+        self.assertEqual(q.get(rid)["approver"], "alice")          # authenticated, not self-reported
+
+        rid2 = q.request({"name": "send2", "args": {}})
+        post("/api/deny", {"id": rid2}, "tokB")
+        self.assertEqual(q.get(rid2)["approver"], "bob")
+
+        rid3 = q.request({"name": "send3", "args": {}})
+        post("/api/approve", {"id": rid3, "approver": "mallory"}, "tokA")
+        self.assertEqual(q.get(rid3)["approver"], "alice")         # body-supplied approver is IGNORED
+
+        rid4 = q.request({"name": "x", "args": {}})
+        with self.assertRaises(HTTPError) as cm:
+            post("/api/approve", {"id": rid4}, "nope")
+        self.assertEqual(cm.exception.code, 401)
+
 
 if __name__ == "__main__":
     unittest.main()
