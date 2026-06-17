@@ -11,6 +11,8 @@ import hmac
 import json
 import os
 import secrets
+import threading
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -65,11 +67,15 @@ class DashboardData:
         return bool(self.queue and self.queue.resolve(rid, False, approver))
 
 
-def make_handler(data: DashboardData, token: "str | None" = None, tokens: "dict | None" = None):
+def make_handler(data: DashboardData, token: "str | None" = None, tokens: "dict | None" = None,
+                 max_failures: int = 10, window: float = 60.0, lockout: float = 120.0):
     # identity map (name -> secret). A single `token` is the "owner" identity; `tokens` adds named users.
     idmap = dict(tokens or {})
     if token:
         idmap.setdefault("owner", token)
+    _fails: dict = {}          # ip -> [recent failed-auth timestamps]
+    _locked: dict = {}         # ip -> locked-until timestamp
+    _auth_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
@@ -101,9 +107,39 @@ def make_handler(data: DashboardData, token: "str | None" = None, tokens: "dict 
                     matched = name
             return matched
 
-        def _authed(self) -> bool:
-            """No tokens configured -> open (loopback dev). Otherwise require a valid token."""
-            return (not idmap) or (self._identity() is not None)
+        def _check_auth(self) -> bool:
+            """Gate /api/*: open when no tokens are configured; otherwise require a valid token, with
+            per-IP lockout after repeated failures (throttles token brute-forcing). Sends the 401/429
+            itself; returns True only when the caller may proceed."""
+            if not idmap:
+                return True
+            # NOTE: keyed on the socket peer. Behind a reverse proxy all requests share the proxy IP,
+            # so lockout is coarse there — real per-client throttling needs trusted X-Forwarded-For.
+            ip = self.client_address[0]
+            now = time.time()
+            with _auth_lock:
+                if _locked.get(ip, 0) > now:
+                    self._send(429, {"error": "too many attempts — locked out, try again later"})
+                    return False
+            if self._identity() is not None:
+                with _auth_lock:                       # success clears the IP's failure history
+                    _fails.pop(ip, None)
+                    _locked.pop(ip, None)
+                return True
+            with _auth_lock:
+                recent = [t for t in _fails.get(ip, []) if now - t < window]
+                recent.append(now)
+                _fails[ip] = recent
+                if len(recent) >= max_failures:
+                    _locked[ip] = now + lockout
+                    _fails[ip] = []
+                # forget IPs with no recent activity so the trackers can't grow unbounded
+                for k in [k for k in _fails if k != ip and (not _fails[k] or now - _fails[k][-1] >= window)]:
+                    _fails.pop(k, None)
+                for k in [k for k in _locked if _locked[k] <= now]:
+                    _locked.pop(k, None)
+            self._send(401, {"error": "unauthorized"})
+            return False
 
         def do_GET(self):
             path = self.path.split("?")[0]
@@ -114,8 +150,7 @@ def make_handler(data: DashboardData, token: "str | None" = None, tokens: "dict 
                 except OSError:
                     self._send(500, {"error": "ui not found"})
                 return
-            if not self._authed():
-                self._send(401, {"error": "unauthorized"})
+            if not self._check_auth():
                 return
             if path == "/api/feed":
                 self._send(200, {"feed": data.feed()})
@@ -132,8 +167,7 @@ def make_handler(data: DashboardData, token: "str | None" = None, tokens: "dict 
 
         def do_POST(self):
             path = self.path.split("?")[0]
-            if not self._authed():
-                self._send(401, {"error": "unauthorized"})
+            if not self._check_auth():
                 return
             try:
                 length = int(self.headers.get("Content-Length", 0) or 0)

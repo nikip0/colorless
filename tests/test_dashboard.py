@@ -189,7 +189,7 @@ class HttpApiTest(unittest.TestCase):
 
 
 class HttpAuthTest(unittest.TestCase):
-    def _server(self, token):
+    def _server(self, token, **handler_kw):
         d = tempfile.mkdtemp()
         lpath = os.path.join(d, "log.jsonl")
         cl = Colorless(ledger=lpath)
@@ -201,7 +201,7 @@ class HttpAuthTest(unittest.TestCase):
         ok()
         q = ApprovalQueue(os.path.join(d, "q.json"))
         self.rid = q.request({"name": "send", "args": {"amount": 9}})
-        httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(DashboardData(lpath, q), token=token))
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(DashboardData(lpath, q), token=token, **handler_kw))
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         self.addCleanup(httpd.server_close)
         self.addCleanup(httpd.shutdown)
@@ -273,6 +273,34 @@ class HttpAuthTest(unittest.TestCase):
         with self.assertRaises(HTTPError) as cm:
             post("/api/approve", {"id": rid4}, "nope")
         self.assertEqual(cm.exception.code, 401)
+
+    def _get(self, base, tok):
+        headers = {"Authorization": "Bearer " + tok} if tok else {}
+        return urlopen(Request(base + "/api/stats", headers=headers), timeout=5)
+
+    def test_lockout_after_repeated_bad_tokens(self):
+        base = self._server("good", max_failures=3)
+        for _ in range(3):                              # 3 bad attempts -> 401
+            with self.assertRaises(HTTPError) as cm:
+                self._get(base, "bad")
+            self.assertEqual(cm.exception.code, 401)
+        with self.assertRaises(HTTPError) as cm:        # next -> locked out
+            self._get(base, "bad")
+        self.assertEqual(cm.exception.code, 429)
+        with self.assertRaises(HTTPError) as cm:        # even the correct token is locked now
+            self._get(base, "good")
+        self.assertEqual(cm.exception.code, 429)
+
+    def test_success_resets_failure_count(self):
+        base = self._server("good", max_failures=3)
+        for _ in range(2):
+            with self.assertRaises(HTTPError):
+                self._get(base, "bad")
+        self.assertEqual(json.loads(self._get(base, "good").read())["total"], 1)  # success clears
+        for _ in range(2):                              # counter was reset -> still not locked
+            with self.assertRaises(HTTPError):
+                self._get(base, "bad")
+        self.assertEqual(json.loads(self._get(base, "good").read())["total"], 1)
 
 
 if __name__ == "__main__":

@@ -143,8 +143,13 @@ A zero-dependency web control room over the ledger — live action feed, pending
 approve/deny on screen, integrity status, and one-click audit export:
 
 ```bash
-colorless dashboard agent.jsonl        # → http://127.0.0.1:8787
+colorless dashboard agent.jsonl        # → http://127.0.0.1:8787/?token=…
 ```
+
+**Auth is on by default** — a token is generated + printed at startup (override with `--token` / env
+`COLORLESS_DASHBOARD_TOKEN`, or `--tokens-file` for named per-user tokens; `--token ""` disables for
+loopback dev). Approvals record the **authenticated approver** in the tamper-evident ledger, and bad
+tokens are rate-limited.
 
 Wire live human approvals to it, so an agent blocks until you click **Approve**:
 
