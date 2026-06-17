@@ -63,6 +63,34 @@ Run the full demo:
 python3 examples/quickstart.py
 ```
 
+## Drop it into your agent loop (OpenAI / Anthropic / MCP)
+
+LLM agents call tools as `(name, arguments)` — the same shape across OpenAI function-calling,
+Anthropic tool use, and MCP servers. `ToolGuard` gates every such call and seals it, with one
+line in your dispatch loop:
+
+```python
+from warrant import Warrant, ToolGuard, PolicyDenied
+
+w = Warrant("agent.jsonl")
+w.deny("delete_repo")
+w.require_approval("send_invoice", when=lambda a: a["args"]["amount"] > 1000)
+
+tg = ToolGuard(w)
+tg.add("search_web", search_web)
+tg.add("send_invoice", send_invoice)
+
+# in your loop, for each tool_call the model emits:
+for call in llm_response.tool_calls:
+    try:
+        result = tg.call(call.name, call.arguments)   # gated + sealed
+    except PolicyDenied:
+        result = "blocked by policy"                  # hand the refusal back to the model
+```
+
+Your tools and your loop don't change — every action is now gated and provable. See
+`examples/agent_loop.py`.
+
 ## Why it's different
 
 | | dev-time eval / tracing<br/>(LangSmith, Braintrust, Arize) | prompt guardrails<br/>(Guardrails AI, NeMo) | **warrant** |

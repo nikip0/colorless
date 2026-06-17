@@ -12,6 +12,7 @@
     w.verify()   # -> {"ok": True, ...}  tamper-evident proof of everything it did
 """
 
+from .adapters import ToolGuard, UnknownTool
 from .core import Warrant
 from .errors import ApprovalRequired, PolicyDenied, WarrantError
 from .ledger import GENESIS, Ledger
@@ -19,7 +20,7 @@ from .policy import ALLOW, APPROVE, DENY, Decision, Policy
 
 __version__ = "0.1.0"
 __all__ = [
-    "Warrant", "Policy", "Decision", "Ledger",
+    "Warrant", "Policy", "Decision", "Ledger", "ToolGuard", "UnknownTool",
     "WarrantError", "PolicyDenied", "ApprovalRequired",
     "ALLOW", "DENY", "APPROVE", "GENESIS", "__version__",
 ]

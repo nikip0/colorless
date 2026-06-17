@@ -91,6 +91,20 @@ class Warrant:
             payload["error"] = error
         return self.ledger.append("action", ref=name, **payload)
 
+    def run(self, name: str, arguments: dict, fn: Callable[[], object]):
+        """Gate an action (name, arguments), execute the zero-arg `fn` if allowed, record the
+        outcome, and return its result. Raises PolicyDenied / ApprovalRequired if blocked. This is
+        the shared gated path used by `@guard` and the tool adapters — call it directly when you
+        already have a tool name + an args dict (e.g. from an LLM tool_call)."""
+        decision, log_action = self._gate({"name": name, "args": arguments})
+        try:
+            result = fn()
+        except Exception as e:
+            self._record(name, log_action, decision, ok=False, error=f"{type(e).__name__}: {e}")
+            raise
+        self._record(name, log_action, decision, ok=True, result=result)
+        return result
+
     # --- the two ways to gate an action --------------------------------------
     def guard(self, fn=None, *, name=None):
         """Decorator: wrap a tool/function so every call is policy-checked and logged.
@@ -107,16 +121,7 @@ class Warrant:
                 logged = dict(kwargs)
                 if args:
                     logged = {**{f"_{i}": a for i, a in enumerate(args)}, **kwargs}
-                action = {"name": action_name, "args": logged}
-                decision, log_action = self._gate(action)
-                try:
-                    result = func(*args, **kwargs)
-                except Exception as e:
-                    self._record(action_name, log_action, decision, ok=False,
-                                 error=f"{type(e).__name__}: {e}")
-                    raise
-                self._record(action_name, log_action, decision, ok=True, result=result)
-                return result
+                return self.run(action_name, logged, lambda: func(*args, **kwargs))
 
             return inner
 
