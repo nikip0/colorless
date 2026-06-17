@@ -1,4 +1,4 @@
-"""Warrant — gate every action your AI agent takes, and seal it into a verifiable ledger.
+"""Colorless — gate every action your AI agent takes, and seal it into a verifiable ledger.
 
 Two guarantees, in ~5 lines of your code:
 
@@ -13,7 +13,9 @@ approval is blocked until your `on_approval` handler returns True.
 
 from __future__ import annotations
 
+import asyncio
 import functools
+import inspect
 import json
 from contextlib import contextmanager
 from typing import Callable, Optional
@@ -21,6 +23,7 @@ from typing import Callable, Optional
 from .errors import ApprovalRequired, PolicyDenied
 from .ledger import Ledger
 from .policy import APPROVE, DENY, Policy
+from .redaction import redact_secrets
 
 
 def _safe(v):
@@ -32,27 +35,28 @@ def _safe(v):
         return repr(v)
 
 
-class Warrant:
-    def __init__(self, ledger="warrant.jsonl", policy: Optional[Policy] = None,
+class Colorless:
+    def __init__(self, ledger="colorless.jsonl", policy: Optional[Policy] = None,
                  on_approval: Optional[Callable[[dict, object], bool]] = None,
-                 redact: Optional[Callable[[dict], dict]] = None):
+                 redact="auto"):
         self.ledger = ledger if isinstance(ledger, Ledger) else Ledger(ledger)
         self.policy = policy or Policy()
         # on_approval(action, decision) -> bool. None => an approval-required action always blocks.
         self.on_approval = on_approval
         # redact(args) -> args, to strip secrets before they're written to the ledger.
-        self.redact = redact
+        # "auto" => the built-in secret redactor (secure by default); None => no redaction.
+        self.redact = redact_secrets if redact == "auto" else redact
 
     # --- policy authoring (chainable) ----------------------------------------
-    def allow(self, *a, **k) -> "Warrant":
+    def allow(self, *a, **k) -> "Colorless":
         self.policy.allow(*a, **k)
         return self
 
-    def deny(self, *a, **k) -> "Warrant":
+    def deny(self, *a, **k) -> "Colorless":
         self.policy.deny(*a, **k)
         return self
 
-    def require_approval(self, *a, **k) -> "Warrant":
+    def require_approval(self, *a, **k) -> "Colorless":
         self.policy.require_approval(*a, **k)
         return self
 
@@ -105,6 +109,20 @@ class Warrant:
         self._record(name, log_action, decision, ok=True, result=result)
         return result
 
+    async def arun(self, name: str, arguments: dict, fn: Callable[[], object]):
+        """Async sibling of `run`: gate, then await `fn()` (sync or coroutine-returning) if allowed,
+        record the outcome, and return its result. For agent frameworks that run on asyncio."""
+        decision, log_action = self._gate({"name": name, "args": arguments})
+        try:
+            result = fn()
+            if inspect.isawaitable(result):
+                result = await result
+        except Exception as e:
+            self._record(name, log_action, decision, ok=False, error=f"{type(e).__name__}: {e}")
+            raise
+        self._record(name, log_action, decision, ok=True, result=result)
+        return result
+
     # --- the two ways to gate an action --------------------------------------
     def guard(self, fn=None, *, name=None):
         """Decorator: wrap a tool/function so every call is policy-checked and logged.
@@ -112,17 +130,24 @@ class Warrant:
             @w.guard
             def transfer_funds(amount, to): ...
         """
+        def _logged(args, kwargs):
+            # named args log cleanly; positionals are captured best-effort as _0, _1, ...
+            return {**{f"_{i}": a for i, a in enumerate(args)}, **kwargs} if args else dict(kwargs)
+
         def wrap(func):
             action_name = name or func.__name__
 
+            if asyncio.iscoroutinefunction(func):
+                @functools.wraps(func)
+                async def ainner(*args, **kwargs):
+                    return await self.arun(action_name, _logged(args, kwargs),
+                                           lambda: func(*args, **kwargs))
+                return ainner
+
             @functools.wraps(func)
             def inner(*args, **kwargs):
-                # named args log cleanly; positionals are captured best-effort as _0, _1, ...
-                logged = dict(kwargs)
-                if args:
-                    logged = {**{f"_{i}": a for i, a in enumerate(args)}, **kwargs}
-                return self.run(action_name, logged, lambda: func(*args, **kwargs))
-
+                return self.run(action_name, _logged(args, kwargs),
+                                lambda: func(*args, **kwargs))
             return inner
 
         return wrap(fn) if fn else wrap

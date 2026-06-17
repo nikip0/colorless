@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 from datetime import datetime, timezone
 
 GENESIS = "0" * 64
@@ -48,8 +49,9 @@ def content_hash(entry: dict) -> str:
 class Ledger:
     """An append-only, hash-chained JSONL file of agent actions."""
 
-    def __init__(self, path: str = "warrant.jsonl"):
+    def __init__(self, path: str = "colorless.jsonl"):
         self.path = str(path)
+        self._lock = threading.Lock()  # serialise read-head -> append within this process
 
     # --- internal -------------------------------------------------------------
     def _read(self) -> list:
@@ -64,23 +66,29 @@ class Ledger:
 
     # --- writing --------------------------------------------------------------
     def append(self, kind: str, ref: str = "", **payload) -> dict:
-        """Seal one entry to the end of the chain. Returns the full entry (incl. row_hash)."""
-        rows = self._read()
-        prev = rows[-1]["row_hash"] if rows else GENESIS
-        entry = {
-            "seq": len(rows),
-            "ts": datetime.now(timezone.utc).isoformat(),
-            "kind": kind,
-            "ref": str(ref or ""),
-            **payload,
-        }
-        ch = content_hash(entry)
-        entry["content_hash"] = ch
-        entry["prev_hash"] = prev
-        entry["row_hash"] = _sha(prev + ch)
-        with open(self.path, "a") as f:
-            f.write(canonical(entry) + "\n")
-        return entry
+        """Seal one entry to the end of the chain. Returns the full entry (incl. row_hash).
+
+        The read-head -> write is serialised by an in-process lock, so concurrent agent
+        threads can't fork the chain by computing `prev_hash` off the same head. (Cross-process
+        writers to one ledger file would still need external locking — single-writer per file
+        is the supported model; concurrent threads in one process are safe.)"""
+        with self._lock:
+            rows = self._read()
+            prev = rows[-1]["row_hash"] if rows else GENESIS
+            entry = {
+                "seq": len(rows),
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "kind": kind,
+                "ref": str(ref or ""),
+                **payload,
+            }
+            ch = content_hash(entry)
+            entry["content_hash"] = ch
+            entry["prev_hash"] = prev
+            entry["row_hash"] = _sha(prev + ch)
+            with open(self.path, "a") as f:
+                f.write(canonical(entry) + "\n")
+            return entry
 
     # --- reading --------------------------------------------------------------
     def head(self) -> dict:

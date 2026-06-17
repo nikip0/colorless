@@ -10,7 +10,7 @@ import tempfile
 # run straight from a clone without installing (after `pip install -e .` this is unnecessary)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from warrant import ApprovalRequired, PolicyDenied, Warrant
+from colorless import ApprovalRequired, PolicyDenied, Colorless
 
 # A human approval handler. In real life this pings Slack / a dashboard / a teammate.
 # Here we auto-approve refunds <= $500 and reject anything bigger, to show both paths.
@@ -24,7 +24,7 @@ def human_approval(action, decision):
 
 def main():
     ledger_path = os.path.join(tempfile.mkdtemp(), "agent.jsonl")
-    w = Warrant(ledger=ledger_path, on_approval=human_approval)
+    w = Colorless(ledger=ledger_path, on_approval=human_approval)
 
     # ---- policy: what is this agent allowed to do? --------------------------
     w.deny("delete_account")                                            # never, full stop

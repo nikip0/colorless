@@ -6,7 +6,7 @@ import os
 import tempfile
 import unittest
 
-from warrant import ApprovalRequired, PolicyDenied, Warrant
+from colorless import ApprovalRequired, PolicyDenied, Colorless
 
 
 class GuardTest(unittest.TestCase):
@@ -14,7 +14,7 @@ class GuardTest(unittest.TestCase):
         self.path = os.path.join(tempfile.mkdtemp(), "log.jsonl")
 
     def _w(self, **kw):
-        return Warrant(ledger=self.path, **kw)
+        return Colorless(ledger=self.path, **kw)
 
     def test_allowed_action_runs_and_logs(self):
         w = self._w()

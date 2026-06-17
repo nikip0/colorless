@@ -3,8 +3,8 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "warrant-agents"
-version = "0.1.0"
+name = "colorless"
+version = "0.2.0"
 description = "Authorize, gate, and prove every action your AI agent takes — tamper-evident, zero-dependency."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -21,9 +21,12 @@ classifiers = [
 ]
 dependencies = []  # zero dependencies, by design
 
+[project.scripts]
+colorless = "colorless.__main__:main"
+
 [project.urls]
-Homepage = "https://github.com/USERNAME/warrant"
-Issues = "https://github.com/USERNAME/warrant/issues"
+Homepage = "https://github.com/USERNAME/colorless"
+Issues = "https://github.com/USERNAME/colorless/issues"
 
 [tool.setuptools.packages.find]
-include = ["warrant*"]
+include = ["colorless*"]

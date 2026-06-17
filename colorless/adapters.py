@@ -1,4 +1,4 @@
-"""Drop warrant into the agent loops people actually run.
+"""Drop colorless into the agent loops people actually run.
 
 LLM agents ultimately call a tool by `(name, arguments_dict)` — that's the shape OpenAI
 function-calling, Anthropic tool use, and MCP servers all hand you. `ToolGuard` wraps a
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
-from .core import Warrant
+from .core import Colorless
 
 
 class UnknownTool(KeyError):
@@ -21,8 +21,8 @@ class UnknownTool(KeyError):
 
 
 class ToolGuard:
-    def __init__(self, warrant: Warrant, tools: Optional[dict] = None):
-        self.w = warrant
+    def __init__(self, colorless: Colorless, tools: Optional[dict] = None):
+        self.w = colorless
         self.tools: dict = dict(tools or {})
 
     def add(self, name: str, fn: Callable) -> "ToolGuard":
@@ -51,6 +51,14 @@ class ToolGuard:
             raise UnknownTool(name)
         fn = self.tools[name]
         return self.w.run(name, arguments, lambda: fn(**arguments))
+
+    async def acall(self, name: str, arguments: Optional[dict] = None):
+        """Async dispatch — for coroutine tools or an asyncio agent loop. Same gating + sealing."""
+        arguments = arguments or {}
+        if name not in self.tools:
+            raise UnknownTool(name)
+        fn = self.tools[name]
+        return await self.w.arun(name, arguments, lambda: fn(**arguments))
 
     def guarded(self) -> dict:
         """Return `{name: wrapped_fn}` where each wrapped fn is gated+logged — handy when a

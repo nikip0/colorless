@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 
-class WarrantError(Exception):
-    """Base class for all warrant errors."""
+class ColorlessError(Exception):
+    """Base class for all colorless errors."""
 
 
-class PolicyDenied(WarrantError):
+class PolicyDenied(ColorlessError):
     """The action is forbidden by policy and was NOT executed."""
 
     def __init__(self, action: dict, decision):
@@ -15,7 +15,7 @@ class PolicyDenied(WarrantError):
         super().__init__(f"action {action.get('name')!r} denied by policy: {decision.reason}")
 
 
-class ApprovalRequired(WarrantError):
+class ApprovalRequired(ColorlessError):
     """The action needs a human sign-off that was not granted; it was NOT executed."""
 
     def __init__(self, action: dict, decision):

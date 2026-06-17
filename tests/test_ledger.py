@@ -7,7 +7,7 @@ import os
 import tempfile
 import unittest
 
-from warrant.ledger import GENESIS, Ledger
+from colorless.ledger import GENESIS, Ledger
 
 
 class LedgerTest(unittest.TestCase):

@@ -6,7 +6,7 @@ import os
 import tempfile
 import unittest
 
-from warrant import ApprovalRequired, PolicyDenied, ToolGuard, UnknownTool, Warrant
+from colorless import ApprovalRequired, PolicyDenied, ToolGuard, UnknownTool, Colorless
 
 
 class ToolGuardTest(unittest.TestCase):
@@ -14,7 +14,7 @@ class ToolGuardTest(unittest.TestCase):
         self.path = os.path.join(tempfile.mkdtemp(), "log.jsonl")
 
     def _tg(self, **kw):
-        return Warrant(ledger=self.path, **kw)
+        return Colorless(ledger=self.path, **kw)
 
     def test_call_allowed_tool_runs_and_logs(self):
         w = self._tg()
@@ -53,7 +53,7 @@ class ToolGuardTest(unittest.TestCase):
         def search(q):
             return f"results for {q}"
 
-        self.assertEqual(tg.call("search", {"q": "warrant"}), "results for warrant")
+        self.assertEqual(tg.call("search", {"q": "colorless"}), "results for colorless")
 
     def test_unknown_tool_raises(self):
         tg = ToolGuard(self._tg())
@@ -70,7 +70,7 @@ class ToolGuardTest(unittest.TestCase):
             fns["danger"]()
 
     def test_simulated_agent_loop_is_fully_verifiable(self):
-        # mimic a model emitting a sequence of tool_calls; warrant gates + logs each
+        # mimic a model emitting a sequence of tool_calls; colorless gates + logs each
         w = self._tg().deny("drop_table")
         tg = ToolGuard(w)
         tg.add("query", lambda sql: "rows").add("drop_table", lambda name: "dropped")

@@ -4,7 +4,7 @@ Run: python3 -m unittest tests.test_policy
 
 import unittest
 
-from warrant.policy import Policy
+from colorless.policy import Policy
 
 
 def act(name, **args):
