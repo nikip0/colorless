@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>colorless — the trust layer for AI agents</title>
+<meta name="description" content="Authorize, gate, and prove every action your AI agent takes. Tamper-evident, zero-dependency runtime trust layer for AI agents." />
+<meta property="og:title" content="colorless — the trust layer for AI agents" />
+<meta property="og:description" content="Stop the actions your AI agents shouldn't take. Prove every action they did. Tamper-evident, zero-dependency, ~5 lines." />
+<meta property="og:type" content="website" />
+<style>
+  :root{
+    --bg:#0a0a0b; --panel:#111113; --panel-2:#161618; --line:#26262a;
+    --ink:#f4f4f5; --muted:#a1a1aa; --faint:#71717a; --accent:#fafafa;
+    --ok:#e4e4e7; --mono:"SFMono-Regular",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;
+    -webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:980px;margin:0 auto;padding:0 24px}
+  .mono{font-family:var(--mono)}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:10;backdrop-filter:blur(10px);
+    background:rgba(10,10,11,.7);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+  .brand{font-family:var(--mono);font-weight:600;letter-spacing:.04em;font-size:18px}
+  .brand .dot{color:var(--faint)}
+  .nav-links{display:flex;gap:26px;align-items:center;font-size:14px;color:var(--muted)}
+  .nav-links a:hover{color:var(--ink)}
+  .btn{display:inline-block;border:1px solid var(--line);padding:9px 16px;border-radius:8px;
+    font-size:14px;font-weight:500;transition:.15s;background:var(--panel)}
+  .btn:hover{border-color:#3f3f46;background:var(--panel-2)}
+  .btn.primary{background:var(--ink);color:#0a0a0b;border-color:var(--ink);font-weight:600}
+  .btn.primary:hover{background:#d4d4d8}
+
+  /* hero */
+  header{padding:96px 0 72px;text-align:center;position:relative;overflow:hidden}
+  header::before{content:"";position:absolute;inset:0;
+    background:radial-gradient(60% 50% at 50% 0%,rgba(255,255,255,.06),transparent 70%);pointer-events:none}
+  .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.18em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:22px}
+  h1{font-size:clamp(34px,6vw,60px);line-height:1.05;letter-spacing:-.02em;font-weight:680;
+    max-width:14ch;margin:0 auto}
+  .sub{color:var(--muted);font-size:clamp(16px,2.2vw,20px);max-width:60ch;margin:22px auto 0}
+  .cta{display:flex;gap:12px;justify-content:center;margin-top:34px;flex-wrap:wrap}
+  .trust{margin-top:26px;font-family:var(--mono);font-size:12.5px;color:var(--faint);
+    display:flex;gap:18px;justify-content:center;flex-wrap:wrap}
+  .trust span{white-space:nowrap}
+
+  /* sections */
+  section{padding:64px 0;border-top:1px solid var(--line)}
+  .kicker{font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--faint);margin-bottom:14px}
+  h2{font-size:clamp(24px,3.5vw,32px);letter-spacing:-.01em;font-weight:640;margin-bottom:14px}
+  .lead{color:var(--muted);font-size:17px;max-width:64ch}
+
+  .twoq{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:30px}
+  .q{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
+  .q .n{font-family:var(--mono);color:var(--faint);font-size:13px;margin-bottom:8px}
+  .q p{font-size:16px;color:var(--ink)}
+
+  /* features */
+  .feat{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:30px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:24px}
+  .card h3{font-size:17px;margin-bottom:8px;display:flex;align-items:center;gap:9px}
+  .card .ic{font-family:var(--mono);font-size:13px;color:#0a0a0b;background:var(--ink);
+    width:26px;height:26px;border-radius:7px;display:grid;place-items:center;font-weight:700}
+  .card p{color:var(--muted);font-size:14.5px}
+
+  /* code */
+  .code{background:#0d0d0f;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:28px}
+  .code .bar{display:flex;gap:7px;padding:13px 16px;border-bottom:1px solid var(--line)}
+  .code .bar i{width:11px;height:11px;border-radius:50%;background:#2b2b30;display:inline-block}
+  pre{padding:20px 22px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.7;color:#e4e4e7}
+  .c-com{color:#6b7280}.c-kw{color:#fafafa;font-weight:600}.c-str{color:#a1a1aa}.c-fn{color:#d4d4d8}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;margin-top:26px;font-size:14.5px}
+  th,td{text-align:left;padding:13px 14px;border-bottom:1px solid var(--line)}
+  th{color:var(--faint);font-weight:500;font-family:var(--mono);font-size:12.5px;
+    letter-spacing:.04em;text-transform:uppercase}
+  td:first-child{color:var(--muted)}
+  .yes{color:var(--ink);font-weight:600}.no{color:#52525b}
+  td.col-c{color:var(--ink);font-weight:600}
+  thead th.col-c{color:var(--ink)}
+
+  /* install / cta */
+  .install pre{background:#0d0d0f;border:1px solid var(--line);border-radius:12px;margin-top:18px}
+  .endcta{text-align:center;background:linear-gradient(180deg,var(--panel),var(--bg));
+    border:1px solid var(--line);border-radius:16px;padding:50px 24px;margin-top:30px}
+  .endcta h2{margin-bottom:10px}
+
+  footer{border-top:1px solid var(--line);padding:34px 0;color:var(--faint);font-size:13.5px}
+  footer .wrap{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px}
+  footer a{color:var(--muted)}footer a:hover{color:var(--ink)}
+
+  @media(max-width:720px){
+    .twoq,.feat{grid-template-columns:1fr}
+    .nav-links a:not(.btn){display:none}
+    header{padding:64px 0 48px}
+  }
+</style>
+</head>
+<body>
+
+<nav><div class="wrap">
+  <div class="brand">colorless<span class="dot">.</span></div>
+  <div class="nav-links">
+    <a href="#how">How it works</a>
+    <a href="#compare">Why</a>
+    <a href="#install">Install</a>
+    <a class="btn" href="https://github.com/nikip0/colorless">GitHub</a>
+  </div>
+</div></nav>
+
+<header><div class="wrap">
+  <div class="eyebrow">The trust layer for AI agents</div>
+  <h1>Let your AI agents act. Prove every move.</h1>
+  <p class="sub">colorless stops the actions your agents shouldn't take, and seals every action they do
+    into a tamper-evident record you can verify. Runtime gating + cryptographic proof, in ~5 lines.</p>
+  <div class="cta">
+    <a class="btn primary" href="#install">Get started</a>
+    <a class="btn" href="https://github.com/nikip0/colorless">View on GitHub →</a>
+  </div>
+  <div class="trust">
+    <span>● Zero dependencies</span><span>● MIT licensed</span>
+    <span>● 49 tests, all green</span><span>● MCP · LangChain · OpenAI</span>
+  </div>
+</div></header>
+
+<section id="why"><div class="wrap">
+  <div class="kicker">The problem</div>
+  <h2>Agents can act now. Can you trust them to?</h2>
+  <p class="lead">The moment an AI agent can move money, write to production, or email a customer, two
+    questions decide whether you can actually ship it — and most teams can't answer either.</p>
+  <div class="twoq">
+    <div class="q"><div class="n">01</div><p>Can you <b>stop</b> the catastrophic action before it
+      happens — the $1M refund, the dropped table, the email to every customer?</p></div>
+    <div class="q"><div class="n">02</div><p>Can you <b>prove</b>, afterward, exactly what it did —
+      and that every action was authorized?</p></div>
+  </div>
+</div></section>
+
+<section id="how"><div class="wrap">
+  <div class="kicker">What it does</div>
+  <h2>Gate it. Prove it. Drop it in.</h2>
+  <div class="feat">
+    <div class="card"><h3><span class="ic">↯</span>Gate</h3>
+      <p>Every action is checked against your policy before it runs — allow, deny, or wait for a human.
+        The dangerous action never executes.</p></div>
+    <div class="card"><h3><span class="ic">✓</span>Prove</h3>
+      <p>Every action is sealed into a tamper-evident hash chain. Edit, delete, or reorder the log and
+        <span class="mono">verify</span> catches it — independently, in one command.</p></div>
+    <div class="card"><h3><span class="ic">{ }</span>Integrate</h3>
+      <p>Works with MCP, LangChain, and OpenAI/Anthropic tool calls in ~5 lines. Secrets are redacted
+        by default. Zero dependencies.</p></div>
+  </div>
+
+  <div class="code">
+    <div class="bar"><i></i><i></i><i></i></div>
+<pre><span class="c-kw">from</span> colorless <span class="c-kw">import</span> Colorless
+
+cl = <span class="c-fn">Colorless</span>(<span class="c-str">"agent.jsonl"</span>, on_approval=ping_slack)
+cl.<span class="c-fn">deny</span>(<span class="c-str">"delete_account"</span>)                 <span class="c-com"># never, full stop</span>
+cl.<span class="c-fn">require_approval</span>(<span class="c-str">"refund"</span>, when=<span class="c-kw">lambda</span> a: a[<span class="c-str">"args"</span>][<span class="c-str">"amount"</span>] &gt; <span class="c-str">100</span>)
+
+<span class="c-com">@cl.guard</span>
+<span class="c-kw">def</span> <span class="c-fn">refund</span>(amount, to):
+    <span class="c-kw">return</span> payments.refund(amount, to)
+
+refund(amount=<span class="c-str">80</span>, to=<span class="c-str">"cust_12"</span>)     <span class="c-com"># runs — sealed in the chain</span>
+refund(amount=<span class="c-str">5000</span>, to=<span class="c-str">"cust_12"</span>)   <span class="c-com"># blocked — waits for a human</span>
+
+cl.<span class="c-fn">verify</span>()  <span class="c-com"># {"ok": True, ...} — proof nothing was altered</span></pre>
+  </div>
+</div></section>
+
+<section id="compare"><div class="wrap">
+  <div class="kicker">Why colorless</div>
+  <h2>Built for production, not just the demo</h2>
+  <p class="lead">Eval and observability tools watch your agent while you build it. Guardrail tools filter
+    text. colorless governs and proves what your agent <em>does</em> in production — the part you get
+    fired (or sued) over.</p>
+  <table>
+    <thead><tr>
+      <th>&nbsp;</th><th>Eval / tracing</th><th>Prompt guardrails</th><th class="col-c">colorless</th>
+    </tr></thead>
+    <tbody>
+      <tr><td>Stop a forbidden <b>action</b> before it runs</td><td class="no">—</td><td class="no">text only</td><td class="col-c">✓</td></tr>
+      <tr><td>Human-in-the-loop approval gate</td><td class="no">—</td><td class="no">—</td><td class="col-c">✓</td></tr>
+      <tr><td>Tamper-evident record of what it did</td><td class="no">—</td><td class="no">—</td><td class="col-c">✓</td></tr>
+      <tr><td>Independently verifiable proof</td><td class="no">—</td><td class="no">—</td><td class="col-c">✓</td></tr>
+      <tr><td>Secret redaction by default</td><td class="no">—</td><td class="no">partial</td><td class="col-c">✓</td></tr>
+      <tr><td>Dependencies</td><td class="no">many</td><td class="no">several</td><td class="col-c">zero</td></tr>
+    </tbody>
+  </table>
+</div></section>
+
+<section id="install" class="install"><div class="wrap">
+  <div class="kicker">Get started</div>
+  <h2>Five lines and a clone away</h2>
+  <p class="lead">Zero dependencies, so it installs instantly. A hosted dashboard — live action feed,
+    approvals from your phone, one-click compliance export — is coming next.</p>
+<pre class="mono">git clone https://github.com/nikip0/colorless.git
+cd colorless && pip install -e .
+
+python3 examples/quickstart.py   <span class="c-com"># watch it block + prove, no setup</span></pre>
+
+  <div class="endcta">
+    <h2>Don't give your agents root access and no manager.</h2>
+    <p class="lead" style="margin:0 auto 24px">Authorize every action. Prove every one.</p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/nikip0/colorless">Star on GitHub</a>
+      <a class="btn" href="https://github.com/nikip0/colorless#readme">Read the docs</a>
+    </div>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div><span class="brand">colorless<span class="dot">.</span></span> &nbsp;— the trust layer for AI agents</div>
+  <div>
+    <a href="https://github.com/nikip0/colorless">GitHub</a> &nbsp;·&nbsp;
+    <a href="https://github.com/nikip0/colorless#readme">Docs</a> &nbsp;·&nbsp;
+    <span>MIT © 2026</span>
+  </div>
+</div></footer>
+
+</body>
+</html>
