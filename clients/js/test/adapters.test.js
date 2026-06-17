@@ -30,6 +30,13 @@ test("unknown tool throws", async () => {
   await assert.rejects(() => tg.call("nope", {}), UnknownTool);
 });
 
+test("inherited Object.prototype names are not callable tools", async () => {
+  const tg = new ToolGuard(new Colorless({ ledger: tmp() }));
+  for (const n of ["constructor", "toString", "__proto__", "hasOwnProperty", "valueOf"]) {
+    await assert.rejects(() => tg.call(n, {}), UnknownTool);
+  }
+});
+
 test("guarded() returns wrapped callables", async () => {
   const cl = new Colorless({ ledger: tmp() }).deny("danger");
   const tg = new ToolGuard(cl).add("safe", () => "ok").add("danger", () => "boom");

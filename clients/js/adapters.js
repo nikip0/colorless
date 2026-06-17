@@ -16,7 +16,9 @@ export class ToolGuard {
   // Dispatch one tool call through the policy gate + ledger. Throws PolicyDenied /
   // ApprovalRequired when blocked (hand that back to the model as a clean refusal).
   async call(name, args = {}) {
-    if (!(name in this.tools)) throw new UnknownTool(name);
+    // Object.hasOwn (not `in`): an LLM tool name like "constructor"/"__proto__"/"toString" must
+    // NOT match an inherited Object.prototype member and get dispatched ungated.
+    if (!Object.hasOwn(this.tools, name)) throw new UnknownTool(name);
     const fn = this.tools[name];
     return this.cl.run(name, args, () => fn(args));
   }
