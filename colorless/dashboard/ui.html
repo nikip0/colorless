@@ -80,9 +80,32 @@
   .foot{color:var(--faint);font-size:12px;text-align:center;margin-top:40px;font-family:var(--mono)}
 
   @media(max-width:760px){.stats{grid-template-columns:repeat(2,1fr)} th.hide,td.hide{display:none}}
+
+  /* login overlay */
+  .login-overlay{position:fixed;inset:0;background:rgba(10,10,11,.92);backdrop-filter:blur(6px);
+    display:none;align-items:center;justify-content:center;z-index:50}
+  .login-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:32px;
+    width:min(360px,90vw);text-align:center}
+  .login-card h2{font-family:var(--mono);letter-spacing:.04em;margin-bottom:6px}
+  .login-card p{color:var(--muted);font-size:13.5px;margin-bottom:18px}
+  .login-card input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;
+    padding:11px 13px;color:var(--ink);font-family:var(--mono);font-size:13px;margin-bottom:12px}
+  .login-card button{width:100%;background:var(--ink);color:#0a0a0b;border:none;border-radius:8px;
+    padding:11px;font-weight:600;cursor:pointer}
+  .login-card .err{color:var(--bad);font-size:12.5px;margin-top:10px;min-height:16px}
 </style>
 </head>
 <body>
+<div class="login-overlay" id="login">
+  <div class="login-card">
+    <h2>colorless<span style="color:var(--faint)">.</span></h2>
+    <p>This dashboard is protected. Enter your access token.</p>
+    <input id="token-input" type="password" placeholder="access token"
+           onkeydown="if(event.key==='Enter')submitToken()" />
+    <button onclick="submitToken()">Unlock</button>
+    <div class="err" id="login-err"></div>
+  </div>
+</div>
 <header><div class="wrap">
   <div class="brand">colorless<span class="dot">.</span><small>control room</small></div>
   <div class="hgroup">
@@ -133,6 +156,30 @@
 
 <script>
 let FEED=[], FILTER="all", QUERY="";
+let TOKEN = localStorage.getItem("cl_token") || "";
+(function(){ // bootstrap token from ?token= in the URL, then strip it so it isn't bookmarked/leaked
+  const u = new URL(location.href);
+  const t = u.searchParams.get("token");
+  if (t) { TOKEN = t; localStorage.setItem("cl_token", t);
+    u.searchParams.delete("token"); history.replaceState({}, "", u.pathname + u.search); }
+})();
+async function authFetch(url, opts={}){
+  const headers = Object.assign({}, opts.headers||{}, TOKEN ? {Authorization:"Bearer "+TOKEN} : {});
+  const r = await fetch(url, Object.assign({}, opts, {headers}));
+  if (r.status === 401){
+    document.getElementById("login-err").textContent = TOKEN ? "Invalid token — try again." : "";
+    showLogin(); throw new Error("unauthorized");
+  }
+  return r;
+}
+function showLogin(){ document.getElementById("login").style.display="flex"; }
+function submitToken(){
+  TOKEN = document.getElementById("token-input").value.trim();
+  localStorage.setItem("cl_token", TOKEN);
+  document.getElementById("login").style.display="none";
+  document.getElementById("login-err").textContent="";
+  poll();
+}
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const short=h=>h?h.slice(0,10)+"…"+h.slice(-6):"—";
@@ -143,9 +190,9 @@ function ago(ts){if(!ts)return"";const d=(Date.now()-new Date(ts))/1000;
 async function poll(){
   try{
     const [stats,feed,pending]=await Promise.all([
-      fetch("/api/stats").then(r=>r.json()),
-      fetch("/api/feed").then(r=>r.json()),
-      fetch("/api/pending").then(r=>r.json())
+      authFetch("/api/stats").then(r=>r.json()),
+      authFetch("/api/feed").then(r=>r.json()),
+      authFetch("/api/pending").then(r=>r.json())
     ]);
     renderStats(stats); FEED=feed.feed||[]; renderFeed(); renderPending(pending.pending||[]);
     $("foot").textContent="live · refreshing every 2.5s · "+new Date().toLocaleTimeString();
@@ -177,7 +224,7 @@ function renderPending(list){
 }
 
 async function resolve(id,ok){
-  await fetch(ok?"/api/approve":"/api/deny",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  await authFetch(ok?"/api/approve":"/api/deny",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
   poll();
 }
 
@@ -216,7 +263,7 @@ function openDrawer(i){
 function closeDrawer(){$("drawer").classList.remove("open");}
 
 async function exportLedger(){
-  const data=await fetch("/api/export").then(r=>r.json());
+  const data=await authFetch("/api/export").then(r=>r.json());
   const blob=new Blob([JSON.stringify(data.entries||[],null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
   a.download="colorless-audit-"+new Date().toISOString().slice(0,10)+".json"; a.click();

@@ -46,6 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
     d.add_argument("--queue", default="colorless_approvals.json", help="approval queue file")
     d.add_argument("--host", default="127.0.0.1")
     d.add_argument("--port", type=int, default=8787)
+    d.add_argument("--token", default=None,
+                   help="access token (default: generated; env COLORLESS_DASHBOARD_TOKEN; '' disables)")
     return p
 
 
@@ -81,7 +83,7 @@ def main(argv=None) -> int:
 
     if args.cmd == "dashboard":
         from .dashboard.server import serve
-        serve(args.ledger, args.queue, args.host, args.port)
+        serve(args.ledger, args.queue, args.host, args.port, args.token)
         return 0
 
     return 2

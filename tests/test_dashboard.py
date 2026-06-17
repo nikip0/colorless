@@ -9,6 +9,7 @@ import threading
 import time
 import unittest
 from http.server import ThreadingHTTPServer
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from colorless import Colorless
@@ -152,6 +153,58 @@ class HttpApiTest(unittest.TestCase):
         finally:
             httpd.shutdown()
             httpd.server_close()
+
+
+class HttpAuthTest(unittest.TestCase):
+    def _server(self, token):
+        d = tempfile.mkdtemp()
+        lpath = os.path.join(d, "log.jsonl")
+        cl = Colorless(ledger=lpath)
+
+        @cl.guard
+        def ok():
+            return "y"
+
+        ok()
+        q = ApprovalQueue(os.path.join(d, "q.json"))
+        self.rid = q.request({"name": "send", "args": {"amount": 9}})
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(DashboardData(lpath, q), token=token))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        return f"http://127.0.0.1:{httpd.server_address[1]}"
+
+    def test_no_auth_when_token_unset(self):
+        base = self._server(None)
+        self.assertEqual(json.loads(urlopen(base + "/api/stats", timeout=5).read())["total"], 1)
+
+    def test_missing_token_is_401(self):
+        base = self._server("s3cret")
+        with self.assertRaises(HTTPError) as cm:
+            urlopen(base + "/api/stats", timeout=5)
+        self.assertEqual(cm.exception.code, 401)
+
+    def test_wrong_token_is_401(self):
+        base = self._server("s3cret")
+        with self.assertRaises(HTTPError) as cm:
+            urlopen(Request(base + "/api/stats", headers={"Authorization": "Bearer nope"}), timeout=5)
+        self.assertEqual(cm.exception.code, 401)
+
+    def test_correct_token_header_and_query_ok(self):
+        base = self._server("s3cret")
+        h = json.loads(urlopen(Request(base + "/api/stats", headers={"Authorization": "Bearer s3cret"}), timeout=5).read())
+        self.assertEqual(h["total"], 1)
+        q = json.loads(urlopen(base + "/api/stats?token=s3cret", timeout=5).read())
+        self.assertEqual(q["total"], 1)
+
+    def test_approve_requires_token_but_shell_is_public(self):
+        base = self._server("s3cret")
+        req = Request(base + "/api/approve", data=json.dumps({"id": self.rid}).encode(),
+                      headers={"Content-Type": "application/json"})
+        with self.assertRaises(HTTPError) as cm:
+            urlopen(req, timeout=5)
+        self.assertEqual(cm.exception.code, 401)
+        self.assertIn("control room", urlopen(base + "/", timeout=5).read().decode())  # HTML shell is public
 
 
 if __name__ == "__main__":

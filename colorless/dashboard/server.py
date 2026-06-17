@@ -7,9 +7,12 @@ the only writes are approve/deny on the approval queue.
 
 from __future__ import annotations
 
+import hmac
 import json
 import os
+import secrets
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlsplit
 
 from ..ledger import Ledger
 from .approvals import ApprovalQueue
@@ -62,7 +65,7 @@ class DashboardData:
         return bool(self.queue and self.queue.resolve(rid, False))
 
 
-def make_handler(data: DashboardData):
+def make_handler(data: DashboardData, token: "str | None" = None):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass  # quiet by default
@@ -75,14 +78,30 @@ def make_handler(data: DashboardData):
             self.end_headers()
             self.wfile.write(b)
 
+        def _authed(self) -> bool:
+            """No token configured -> open (loopback dev). Otherwise require it via an
+            `Authorization: Bearer <token>` header or a `?token=` query param; constant-time compare."""
+            if not token:
+                return True
+            supplied = None
+            auth = self.headers.get("Authorization", "")
+            if auth.startswith("Bearer "):
+                supplied = auth[7:]
+            if supplied is None:
+                supplied = (parse_qs(urlsplit(self.path).query).get("token") or [None])[0]
+            return supplied is not None and hmac.compare_digest(str(supplied), token)
+
         def do_GET(self):
             path = self.path.split("?")[0]
             if path in ("/", "/index.html"):
                 try:
                     with open(_UI, "rb") as f:
-                        self._send(200, f.read(), "text/html; charset=utf-8")
+                        self._send(200, f.read(), "text/html; charset=utf-8")  # shell is public; data is gated
                 except OSError:
                     self._send(500, {"error": "ui not found"})
+                return
+            if not self._authed():
+                self._send(401, {"error": "unauthorized"})
                 return
             if path == "/api/feed":
                 self._send(200, {"feed": data.feed()})
@@ -99,6 +118,9 @@ def make_handler(data: DashboardData):
 
         def do_POST(self):
             path = self.path.split("?")[0]
+            if not self._authed():
+                self._send(401, {"error": "unauthorized"})
+                return
             try:
                 length = int(self.headers.get("Content-Length", 0) or 0)
             except ValueError:
@@ -120,15 +142,21 @@ def make_handler(data: DashboardData):
 
 
 def serve(ledger_path: str, queue_path: "str | None" = None,
-          host: str = "127.0.0.1", port: int = 8787):
+          host: str = "127.0.0.1", port: int = 8787, token: "str | None" = None):
     queue = ApprovalQueue(queue_path) if queue_path else ApprovalQueue()
     data = DashboardData(ledger_path, queue)
-    httpd = ThreadingHTTPServer((host, port), make_handler(data))
-    if host not in ("127.0.0.1", "localhost", "::1"):
-        print("WARNING: binding to a non-loopback host exposes the dashboard with NO authentication "
-              "— anyone who can reach it can read the audit log and approve/deny actions. Keep it on "
-              "127.0.0.1, or put it behind an authenticating proxy.")
-    print(f"colorless dashboard → http://{host}:{port}   (ledger: {ledger_path})")
+    # secure by default: explicit token -> env -> a freshly generated one. Pass token="" to disable.
+    if token is None:
+        token = os.environ.get("COLORLESS_DASHBOARD_TOKEN") or secrets.token_urlsafe(32)
+    httpd = ThreadingHTTPServer((host, port), make_handler(data, token or None))
+    if host not in ("127.0.0.1", "localhost", "::1") and not token:
+        print("WARNING: binding to a non-loopback host with NO token exposes the dashboard to anyone "
+              "who can reach it — they can read the audit log and approve/deny actions.")
+    if token:
+        print(f"colorless dashboard → http://{host}:{port}/?token={token}")
+        print("  (token required — open the URL above, or send 'Authorization: Bearer <token>')")
+    else:
+        print(f"colorless dashboard → http://{host}:{port}   (no token — open access)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
