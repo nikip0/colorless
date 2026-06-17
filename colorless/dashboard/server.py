@@ -58,11 +58,11 @@ class DashboardData:
     def pending(self) -> list:
         return self.queue.pending() if self.queue else []
 
-    def approve(self, rid: str) -> bool:
-        return bool(self.queue and self.queue.resolve(rid, True))
+    def approve(self, rid: str, approver: "str | None" = None) -> bool:
+        return bool(self.queue and self.queue.resolve(rid, True, approver))
 
-    def deny(self, rid: str) -> bool:
-        return bool(self.queue and self.queue.resolve(rid, False))
+    def deny(self, rid: str, approver: "str | None" = None) -> bool:
+        return bool(self.queue and self.queue.resolve(rid, False, approver))
 
 
 def make_handler(data: DashboardData, token: "str | None" = None):
@@ -131,10 +131,15 @@ def make_handler(data: DashboardData, token: "str | None" = None):
             except ValueError:
                 payload = {}
             rid = payload.get("id")
+            # NOTE: approver is currently self-reported by the operator (the dashboard sends a typed
+            # name). It is NOT yet bound to the authenticated identity — a per-user named-token model
+            # (next increment) will make approver = the authenticated user. Coerce + cap for now.
+            approver = payload.get("approver")
+            approver = approver[:200] or None if isinstance(approver, str) else None
             if path == "/api/approve":
-                self._send(200, {"ok": data.approve(rid)})
+                self._send(200, {"ok": data.approve(rid, approver)})
             elif path == "/api/deny":
-                self._send(200, {"ok": data.deny(rid)})
+                self._send(200, {"ok": data.deny(rid, approver)})
             else:
                 self._send(404, {"error": "not found"})
 

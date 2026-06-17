@@ -35,6 +35,14 @@ def _safe(v):
         return repr(v)
 
 
+def _approval_result(raw):
+    """on_approval may return a bool, or a dict {'approved': bool, 'approver': str} so the human
+    who authorized (or rejected) the action can be sealed into the ledger. Returns (approved, approver)."""
+    if isinstance(raw, dict):
+        return bool(raw.get("approved")), raw.get("approver")
+    return bool(raw), None
+
+
 class Colorless:
     def __init__(self, ledger="colorless.jsonl", policy: Optional[Policy] = None,
                  on_approval: Optional[Callable[[dict, object], bool]] = None,
@@ -88,26 +96,33 @@ class Colorless:
         return self.redact(dict(args)) if self.redact else args
 
     def _gate(self, action: dict):
-        """Evaluate policy; record + raise on deny / unapproved; else return (decision, log_action)."""
+        """Evaluate policy; record + raise on deny / unapproved; else return (decision, log_action,
+        approver). `approver` is who authorized an approval-gated action (or None)."""
         decision = self.policy.decide(action)
         log_action = {"name": action["name"], "args": self._logged_args(action.get("args", {}))}
         if decision.denied:
             self._write(action["name"], action=log_action,
                         decision=DENY, reason=decision.reason, executed=False)
             raise PolicyDenied(action, decision)
+        approver = None
         if decision.needs_approval:
-            approved = bool(self.on_approval(action, decision)) if self.on_approval else False
+            raw = self.on_approval(action, decision) if self.on_approval else False
+            approved, approver = _approval_result(raw)
             if not approved:
-                self._write(action["name"], action=log_action,
-                            decision=APPROVE, approved=False, reason=decision.reason,
-                            executed=False)
+                blocked = {"action": log_action, "decision": APPROVE, "approved": False,
+                           "reason": decision.reason, "executed": False}
+                if approver:
+                    blocked["approver"] = approver   # who rejected it
+                self._write(action["name"], **blocked)
                 raise ApprovalRequired(action, decision)
-        return decision, log_action
+        return decision, log_action, approver
 
-    def _record(self, name, log_action, decision, ok, result=None, error=None) -> dict:
+    def _record(self, name, log_action, decision, ok, result=None, error=None, approver=None) -> dict:
         payload = {"action": log_action, "decision": decision.verdict, "executed": True, "ok": ok}
         if decision.needs_approval:
             payload["approved"] = True
+            if approver:
+                payload["approver"] = approver   # who authorized it — sealed in the chain
         if ok and result is not None:
             payload["result"] = _safe(result)
         if not ok:
@@ -119,27 +134,27 @@ class Colorless:
         outcome, and return its result. Raises PolicyDenied / ApprovalRequired if blocked. This is
         the shared gated path used by `@guard` and the tool adapters — call it directly when you
         already have a tool name + an args dict (e.g. from an LLM tool_call)."""
-        decision, log_action = self._gate({"name": name, "args": arguments})
+        decision, log_action, approver = self._gate({"name": name, "args": arguments})
         try:
             result = fn()
         except Exception as e:
-            self._record(name, log_action, decision, ok=False, error=f"{type(e).__name__}: {e}")
+            self._record(name, log_action, decision, ok=False, error=f"{type(e).__name__}: {e}", approver=approver)
             raise
-        self._record(name, log_action, decision, ok=True, result=result)
+        self._record(name, log_action, decision, ok=True, result=result, approver=approver)
         return result
 
     async def arun(self, name: str, arguments: dict, fn: Callable[[], object]):
         """Async sibling of `run`: gate, then await `fn()` (sync or coroutine-returning) if allowed,
         record the outcome, and return its result. For agent frameworks that run on asyncio."""
-        decision, log_action = self._gate({"name": name, "args": arguments})
+        decision, log_action, approver = self._gate({"name": name, "args": arguments})
         try:
             result = fn()
             if inspect.isawaitable(result):
                 result = await result
         except Exception as e:
-            self._record(name, log_action, decision, ok=False, error=f"{type(e).__name__}: {e}")
+            self._record(name, log_action, decision, ok=False, error=f"{type(e).__name__}: {e}", approver=approver)
             raise
-        self._record(name, log_action, decision, ok=True, result=result)
+        self._record(name, log_action, decision, ok=True, result=result, approver=approver)
         return result
 
     # --- the two ways to gate an action --------------------------------------
@@ -179,13 +194,13 @@ class Colorless:
                 bank.transfer(...)
         """
         act = {"name": name, "args": args}
-        decision, log_action = self._gate(act)
+        decision, log_action, approver = self._gate(act)
         try:
             yield decision
         except Exception as e:
-            self._record(name, log_action, decision, ok=False, error=f"{type(e).__name__}: {e}")
+            self._record(name, log_action, decision, ok=False, error=f"{type(e).__name__}: {e}", approver=approver)
             raise
-        self._record(name, log_action, decision, ok=True)
+        self._record(name, log_action, decision, ok=True, approver=approver)
 
     # --- verification passthrough --------------------------------------------
     def verify(self) -> dict:

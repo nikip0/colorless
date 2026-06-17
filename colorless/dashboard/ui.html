@@ -111,6 +111,7 @@
   <div class="hgroup">
     <span id="integrity" class="badge"><span class="led"></span><span id="integrity-text">checking…</span></span>
     <button class="btn" onclick="exportLedger()">Export</button>
+    <button class="btn" onclick="logout()">Lock</button>
   </div>
 </div></header>
 
@@ -224,9 +225,13 @@ function renderPending(list){
 }
 
 async function resolve(id,ok){
-  await authFetch(ok?"/api/approve":"/api/deny",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id})});
+  let who=localStorage.getItem("cl_operator");
+  if(!who){ who=(prompt("Your name (recorded as the approver in the audit log):")||"").trim();
+    if(who) localStorage.setItem("cl_operator",who); }
+  await authFetch(ok?"/api/approve":"/api/deny",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,approver:who||null})});
   poll();
 }
+function logout(){ localStorage.removeItem("cl_token"); TOKEN=""; document.getElementById("login-err").textContent=""; showLogin(); }
 
 function decClass(d){return d==="allow"?"allow":d==="deny"?"deny":d==="approve"?"approve":"";}
 function passFilter(r){

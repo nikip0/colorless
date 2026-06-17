@@ -49,11 +49,11 @@ class ApprovalQueueTest(unittest.TestCase):
         t.start()
         result = on_approval({"name": "send_money", "args": {"amount": 250}}, None)
         t.join()
-        self.assertTrue(result)
+        self.assertTrue(result["approved"])
 
     def test_queue_approval_times_out_to_deny(self):
         on_approval = queue_approval(self.q, poll=0.02, timeout=0.1)
-        self.assertFalse(on_approval({"name": "x", "args": {}}, None))   # silence -> deny
+        self.assertFalse(on_approval({"name": "x", "args": {}}, None)["approved"])   # silence -> deny
 
     def test_concurrent_requests_lose_nothing(self):
         # the locked read-modify-write must not drop entries under simultaneous writers
@@ -65,6 +65,33 @@ class ApprovalQueueTest(unittest.TestCase):
         for t in ts:
             t.join()
         self.assertEqual(len(self.q.all()), 25)
+
+    def test_resolve_records_approver(self):
+        rid = self.q.request({"name": "refund", "args": {"amount": 250}})
+        self.assertTrue(self.q.resolve(rid, True, approver="alice"))
+        self.assertEqual(self.q.get(rid)["approver"], "alice")
+
+    def test_approver_flows_queue_to_ledger(self):
+        lpath = os.path.join(tempfile.mkdtemp(), "log.jsonl")
+        cl = Colorless(ledger=lpath, on_approval=queue_approval(self.q, poll=0.02, timeout=3.0))
+        cl.require_approval("refund")
+
+        def approver():
+            for _ in range(300):
+                p = self.q.pending()
+                if p:
+                    self.q.resolve(p[0]["id"], True, approver="alice")
+                    return
+                time.sleep(0.01)
+
+        t = threading.Thread(target=approver)
+        t.start()
+        cl.run("refund", {"amount": 50}, lambda: "done")
+        t.join()
+        e = cl.entries("refund")[-1]
+        self.assertTrue(e["approved"])
+        self.assertEqual(e["approver"], "alice")     # who authorized it, sealed in the chain
+        self.assertTrue(cl.verify()["ok"])
 
 
 class DashboardDataTest(unittest.TestCase):
@@ -110,6 +137,12 @@ class DashboardDataTest(unittest.TestCase):
         rid = q.pending()[0]["id"]
         self.assertTrue(data.approve(rid))
         self.assertEqual(len(q.pending()), 0)
+
+    def test_approve_records_approver(self):
+        data, q = self._seed()
+        rid = q.pending()[0]["id"]
+        self.assertTrue(data.approve(rid, approver="bob"))
+        self.assertEqual(q.get(rid)["approver"], "bob")
 
 
 class HttpApiTest(unittest.TestCase):
