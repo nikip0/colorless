@@ -126,18 +126,21 @@ def make_handler(data: DashboardData, token: "str | None" = None, tokens: "dict 
                     _fails.pop(ip, None)
                     _locked.pop(ip, None)
                 return True
-            with _auth_lock:
-                recent = [t for t in _fails.get(ip, []) if now - t < window]
-                recent.append(now)
-                _fails[ip] = recent
-                if len(recent) >= max_failures:
-                    _locked[ip] = now + lockout
-                    _fails[ip] = []
-                # forget IPs with no recent activity so the trackers can't grow unbounded
-                for k in [k for k in _fails if k != ip and (not _fails[k] or now - _fails[k][-1] >= window)]:
-                    _fails.pop(k, None)
-                for k in [k for k in _locked if _locked[k] <= now]:
-                    _locked.pop(k, None)
+            # Only a SUPPLIED-but-wrong token counts toward lockout. A *missing* token just gets a 401
+            # (prompts login), so a not-yet-authenticated browser polling /api/* can't lock itself out.
+            if self._supplied_token() is not None:
+                with _auth_lock:
+                    recent = [t for t in _fails.get(ip, []) if now - t < window]
+                    recent.append(now)
+                    _fails[ip] = recent
+                    if len(recent) >= max_failures:
+                        _locked[ip] = now + lockout
+                        _fails[ip] = []
+                    # forget IPs with no recent activity so the trackers can't grow unbounded
+                    for k in [k for k in _fails if k != ip and (not _fails[k] or now - _fails[k][-1] >= window)]:
+                        _fails.pop(k, None)
+                    for k in [k for k in _locked if _locked[k] <= now]:
+                        _locked.pop(k, None)
             self._send(401, {"error": "unauthorized"})
             return False
 

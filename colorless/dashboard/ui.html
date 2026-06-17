@@ -173,13 +173,13 @@ async function authFetch(url, opts={}){
   }
   return r;
 }
-function showLogin(){ document.getElementById("login").style.display="flex"; }
+function showLogin(){ stopPolling(); document.getElementById("login").style.display="flex"; }
 function submitToken(){
   TOKEN = document.getElementById("token-input").value.trim();
   localStorage.setItem("cl_token", TOKEN);
   document.getElementById("login").style.display="none";
   document.getElementById("login-err").textContent="";
-  poll();
+  startPolling();
 }
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -199,6 +199,9 @@ async function poll(){
     $("foot").textContent="live · refreshing every 2.5s · "+new Date().toLocaleTimeString();
   }catch(e){ $("foot").textContent="dashboard offline — is the server running?"; }
 }
+let POLL_TIMER=null;
+function startPolling(){ if(POLL_TIMER) return; poll(); POLL_TIMER=setInterval(poll,2500); }
+function stopPolling(){ if(POLL_TIMER){ clearInterval(POLL_TIMER); POLL_TIMER=null; } }
 
 function renderStats(s){
   $("s-total").textContent=s.total??0;
@@ -279,7 +282,7 @@ document.querySelectorAll("#filters .chip").forEach(c=>c.onclick=()=>{
 $("search").addEventListener("input",e=>{QUERY=e.target.value.toLowerCase();renderFeed();});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeDrawer();});
 
-poll(); setInterval(poll,2500);
+startPolling();
 </script>
 </body>
 </html>

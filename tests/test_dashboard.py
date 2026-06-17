@@ -302,6 +302,15 @@ class HttpAuthTest(unittest.TestCase):
                 self._get(base, "bad")
         self.assertEqual(json.loads(self._get(base, "good").read())["total"], 1)
 
+    def test_missing_token_never_locks_out(self):
+        # a not-yet-authenticated browser polling /api/* (no token) must NOT trip the lockout
+        base = self._server("good", max_failures=3)
+        for _ in range(6):
+            with self.assertRaises(HTTPError) as cm:
+                self._get(base, None)
+            self.assertEqual(cm.exception.code, 401)    # always 401, never 429
+        self.assertEqual(json.loads(self._get(base, "good").read())["total"], 1)  # good token still works
+
 
 if __name__ == "__main__":
     unittest.main()
