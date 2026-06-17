@@ -3,10 +3,15 @@
 **Authorize, gate, and prove every action your AI agent takes.**
 Tamper-evident. Zero dependencies. ~5 lines of code.
 
+![tests](https://img.shields.io/badge/tests-49%20passing-brightgreen)
+![python](https://img.shields.io/badge/python-3.9%2B-blue)
+![dependencies](https://img.shields.io/badge/dependencies-0-blueviolet)
+![license](https://img.shields.io/badge/license-MIT-green)
+
 > v0.2 — early but real, and useful today: policy gating, a tamper-evident ledger, sync **and
-> async** guards, tool-call adapters (OpenAI/Anthropic/MCP), **secret-redaction by default**,
-> thread-safe appends, and a `colorless` CLI — all zero-dependency, 45 tests green. The hosted
-> dashboard + team features are on the roadmap below.
+> async** guards, tool-call adapters (OpenAI/Anthropic/MCP/LangChain), **secret-redaction by
+> default**, thread-safe appends, and a `colorless` CLI — all zero-dependency, 49 tests green.
+> The hosted dashboard + team features are on the roadmap below.
 
 ---
 
@@ -131,6 +136,15 @@ colorless tail          agent.jsonl -n 20
 colorless anchor        agent.jsonl agent.anchor.json  # publish this snapshot externally
 colorless verify-anchor agent.jsonl agent.anchor.json
 ```
+
+## Integrations
+
+The core is framework-agnostic; these add turnkey wiring. Each adapter imports **no** third-party
+SDK, so the core stays zero-dependency:
+
+- **MCP** — `colorless.integrations.mcp` + `examples/mcp_server.py` (FastMCP). Gate + seal every tool an MCP client calls. `pip install mcp`.
+- **LangChain / LangGraph** — `guard_tools(cl, tools)` in `colorless.integrations.langchain` + `examples/langchain_agent.py`. One line wraps your entire tool list. `pip install langchain-core`.
+- **OpenAI / Anthropic tool calls** — use `ToolGuard.call(name, args)` directly in your loop (`examples/agent_loop.py`).
 
 ## Why it's different
 
