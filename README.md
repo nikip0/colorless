@@ -24,8 +24,18 @@ Today most teams have neither. They have *traces* and *eval scores from developm
 
 ## Install
 
+Not on PyPI yet (the name isn't final). For now, from source — zero dependencies, so it's instant:
+
 ```bash
-pip install warrant-agents   # zero dependencies
+git clone https://github.com/<your-username>/warrant.git
+cd warrant
+pip install -e .
+```
+
+Or run straight from a clone with no install at all:
+
+```bash
+python3 examples/quickstart.py
 ```
 
 ## Quickstart
