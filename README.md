@@ -167,6 +167,20 @@ SDK, so the core stays zero-dependency:
 - **LangChain / LangGraph** — `guard_tools(cl, tools)` in `colorless.integrations.langchain` + `examples/langchain_agent.py`. One line wraps your entire tool list. `pip install langchain-core`.
 - **OpenAI / Anthropic tool calls** — use `ToolGuard.call(name, args)` directly in your loop (`examples/agent_loop.py`).
 
+## OpenTelemetry
+
+Stream the audit into your existing observability stack — every gated action becomes an OTel GenAI
+span. Optional; the core stays zero-dependency.
+
+```python
+from colorless import Colorless
+from colorless.otel import instrument, export_ledger
+
+cl = Colorless("agent.jsonl")
+instrument(cl)                 # live: pip install 'colorless[otel]', or pass your own tracer
+export_ledger("agent.jsonl")   # or batch-replay an existing ledger into your backend
+```
+
 ## JavaScript / TypeScript
 
 colorless has a zero-dependency JS/TS SDK too (`clients/js`) — first-class TypeScript types and the

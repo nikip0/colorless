@@ -46,6 +46,25 @@ class Colorless:
         # redact(args) -> args, to strip secrets before they're written to the ledger.
         # "auto" => the built-in secret redactor (secure by default); None => no redaction.
         self.redact = redact_secrets if redact == "auto" else redact
+        self._subscribers = []  # cb(entry) fired after every ledger append (OTel, alerting, ...)
+
+    def subscribe(self, callback: "Callable[[dict], None]") -> "Callable":
+        """Register a callback fired with each sealed ledger entry (after it's written). Used by the
+        OTel exporter and alerting; a failing callback never breaks logging. Returns the callback."""
+        self._subscribers.append(callback)
+        return callback
+
+    def _emit_event(self, entry: dict) -> None:
+        for cb in self._subscribers:
+            try:
+                cb(entry)
+            except Exception:
+                pass  # a subscriber must never break the audit write
+
+    def _write(self, ref: str, **payload) -> dict:
+        entry = self.ledger.append("action", ref=ref, **payload)
+        self._emit_event(entry)
+        return entry
 
     # --- policy authoring (chainable) ----------------------------------------
     def allow(self, *a, **k) -> "Colorless":
@@ -73,15 +92,15 @@ class Colorless:
         decision = self.policy.decide(action)
         log_action = {"name": action["name"], "args": self._logged_args(action.get("args", {}))}
         if decision.denied:
-            self.ledger.append("action", ref=action["name"], action=log_action,
-                               decision=DENY, reason=decision.reason, executed=False)
+            self._write(action["name"], action=log_action,
+                        decision=DENY, reason=decision.reason, executed=False)
             raise PolicyDenied(action, decision)
         if decision.needs_approval:
             approved = bool(self.on_approval(action, decision)) if self.on_approval else False
             if not approved:
-                self.ledger.append("action", ref=action["name"], action=log_action,
-                                   decision=APPROVE, approved=False, reason=decision.reason,
-                                   executed=False)
+                self._write(action["name"], action=log_action,
+                            decision=APPROVE, approved=False, reason=decision.reason,
+                            executed=False)
                 raise ApprovalRequired(action, decision)
         return decision, log_action
 
@@ -93,7 +112,7 @@ class Colorless:
             payload["result"] = _safe(result)
         if not ok:
             payload["error"] = error
-        return self.ledger.append("action", ref=name, **payload)
+        return self._write(name, **payload)
 
     def run(self, name: str, arguments: dict, fn: Callable[[], object]):
         """Gate an action (name, arguments), execute the zero-arg `fn` if allowed, record the
