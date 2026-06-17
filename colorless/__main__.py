@@ -40,6 +40,12 @@ def build_parser() -> argparse.ArgumentParser:
     va = sub.add_parser("verify-anchor", help="check the ledger against a published anchor")
     va.add_argument("ledger")
     va.add_argument("anchor")
+
+    d = sub.add_parser("dashboard", help="launch the web dashboard (feed, approvals, verify)")
+    d.add_argument("ledger")
+    d.add_argument("--queue", default="colorless_approvals.json", help="approval queue file")
+    d.add_argument("--host", default="127.0.0.1")
+    d.add_argument("--port", type=int, default=8787)
     return p
 
 
@@ -72,6 +78,11 @@ def main(argv=None) -> int:
         res = led.verify_against_anchor(args.anchor)
         print(json.dumps(res, indent=2))
         return 0 if res.get("matches") else 1
+
+    if args.cmd == "dashboard":
+        from .dashboard.server import serve
+        serve(args.ledger, args.queue, args.host, args.port)
+        return 0
 
     return 2
 

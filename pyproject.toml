@@ -30,3 +30,6 @@ Issues = "https://github.com/nikip0/colorless/issues"
 
 [tool.setuptools.packages.find]
 include = ["colorless*"]
+
+[tool.setuptools.package-data]
+"colorless.dashboard" = ["*.html"]
