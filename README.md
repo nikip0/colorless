@@ -167,6 +167,25 @@ SDK, so the core stays zero-dependency:
 - **LangChain / LangGraph** — `guard_tools(cl, tools)` in `colorless.integrations.langchain` + `examples/langchain_agent.py`. One line wraps your entire tool list. `pip install langchain-core`.
 - **OpenAI / Anthropic tool calls** — use `ToolGuard.call(name, args)` directly in your loop (`examples/agent_loop.py`).
 
+## JavaScript / TypeScript
+
+colorless has a zero-dependency JS/TS SDK too (`clients/js`) — first-class TypeScript types and the
+**same** tamper-evident ledger format, so a ledger written by a Node agent verifies with the Python
+`colorless verify` CLI.
+
+```ts
+import { Colorless } from "colorless";
+
+const cl = new Colorless({ ledger: "agent.jsonl" });
+cl.requireApproval("refund", (a) => a.args.amount > 100);
+
+const refund = cl.guard(async ({ amount, to }) => pay(amount, to), { name: "refund" });
+await refund({ amount: 80, to: "cust_12" });   // sealed in the chain
+cl.verify();                                    // { ok: true, ... }
+```
+
+See [`clients/js/README.md`](clients/js/README.md).
+
 ## Why it's different
 
 | | dev-time eval / tracing<br/>(LangSmith, Braintrust, Arize) | prompt guardrails<br/>(Guardrails AI, NeMo) | **colorless** |

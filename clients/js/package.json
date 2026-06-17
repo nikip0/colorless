@@ -1,0 +1,24 @@
+{
+  "name": "colorless",
+  "version": "0.2.0",
+  "description": "Authorize, gate, and prove every action your AI agent takes — tamper-evident, zero-dependency.",
+  "type": "module",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    }
+  },
+  "files": ["*.js", "index.d.ts", "README.md"],
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": ["ai", "agents", "llm", "audit", "guardrails", "trust", "verification", "governance", "mcp", "tamper-evident"],
+  "license": "MIT",
+  "author": "Niki Petrov",
+  "engines": { "node": ">=18" },
+  "dependencies": {},
+  "repository": { "type": "git", "url": "https://github.com/nikip0/colorless.git", "directory": "clients/js" }
+}
