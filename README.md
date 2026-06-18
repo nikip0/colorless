@@ -172,6 +172,23 @@ SDK, so the core stays zero-dependency:
 - **LangChain / LangGraph** — `guard_tools(cl, tools)` in `colorless.integrations.langchain` + `examples/langchain_agent.py`. One line wraps your entire tool list. `pip install langchain-core`.
 - **OpenAI / Anthropic tool calls** — use `ToolGuard.call(name, args)` directly in your loop (`examples/agent_loop.py`).
 
+## Content guardrails
+
+Detect PII, prompt-injection, and jailbreak attempts in the text your agent handles — and gate on
+them through the same policy + tamper-evident audit (so you can *prove* you screened):
+
+```python
+from colorless import Colorless
+from colorless.guardrails import has_injection, has_pii, redact_pii
+
+cl = Colorless("agent.jsonl", redact=redact_pii)   # keep detected PII out of the log too
+cl.deny(when=has_injection)                          # block any action whose args carry an injection
+cl.require_approval(when=has_pii)                    # any action carrying PII waits for a human
+```
+
+Zero-dependency, pattern-based — a fast first line you can prove you ran. For ML-grade detection,
+plug in Presidio/Lakera as your own `when=` predicate; colorless gives you the gate + audit, not the model.
+
 ## Storage backends
 
 The ledger is pluggable. **JSONL** is the zero-dependency, portable default; point it at a `.db` /
