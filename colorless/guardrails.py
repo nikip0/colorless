@@ -111,17 +111,23 @@ def has_injection(action: dict) -> bool:
 
 # --- PII redaction (so detected PII doesn't itself land in the ledger) ---
 def _redact_text(s: str) -> str:
-    s = _PII["email"].sub("[email]", s)
+    # cards first (longest digit run) so the phone matcher can't eat part of a card and mislabel it
+    s = _CC_CANDIDATE.sub(lambda m: "[card]" if _luhn(m.group()) else m.group(), s)
     s = _PII["ssn"].sub("[ssn]", s)
     s = _PII["phone"].sub("[phone]", s)
+    s = _PII["email"].sub("[email]", s)
     s = _PII["ip"].sub("[ip]", s)
-    s = _CC_CANDIDATE.sub(lambda m: "[card]" if _luhn(m.group()) else m.group(), s)
     return s
 
 
 def _redact_value(v):
     if isinstance(v, str):
         return _redact_text(v)
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        masked = _redact_text(str(v))                  # PII passed as a number is masked too
+        return masked if masked != str(v) else v       # keep the original number/type when it's not PII
     if isinstance(v, dict):
         return {k: _redact_value(x) for k, x in v.items()}
     if isinstance(v, (list, tuple)):

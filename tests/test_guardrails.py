@@ -87,6 +87,11 @@ class RedactionTest(unittest.TestCase):
         self.assertIn("[phone]", out["msg"])
         self.assertEqual(out["nested"]["ip"], "[ip]")
 
+    def test_redact_pii_masks_numeric(self):
+        out = redact_pii({"card": 4111111111111111, "qty": 3})
+        self.assertEqual(out["card"], "[card]")     # numeric card masked (matches what scan detects)
+        self.assertEqual(out["qty"], 3)             # ordinary int preserved (value + type)
+
     def test_compose_with_secret_redaction(self):
         combined = lambda a: redact_pii(redact_secrets(a))
         out = combined({"api_key": "sk-abc123def456", "msg": "reach me at a@b.com"})
