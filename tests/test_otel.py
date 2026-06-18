@@ -84,6 +84,32 @@ class OtelTest(unittest.TestCase):
         self.assertEqual(n, 2)
         self.assertEqual(len(tracer.spans), 2)
 
+    def test_genai_attributes_tolerates_non_int_seq(self):
+        # a foreign/corrupt row with a non-int seq must not crash the mapping (was int() -> ValueError)
+        a = genai_attributes({"seq": "not-an-int", "action": {"name": "x"}})
+        self.assertEqual(a["colorless.seq"], -1)
+
+    def test_export_ledger_skips_a_bad_entry_without_aborting(self):
+        # one row that makes the backend throw must not abort the whole batch export
+        cl = Colorless(ledger=self.path)
+        cl.run("a", {"x": 1}, lambda: "y")
+        cl.run("b", {"x": 2}, lambda: "z")
+
+        class _ThrowingSpan(_FakeSpan):
+            def set_attribute(self, k, v):
+                if k == "gen_ai.tool.name" and v == "b":
+                    raise RuntimeError("backend rejected this attribute")
+                super().set_attribute(k, v)
+
+        class _ThrowingTracer(_FakeTracer):
+            def start_span(self, name):
+                s = _ThrowingSpan(name)
+                self.spans.append(s)
+                return s
+
+        n = export_ledger(self.path, _ThrowingTracer())
+        self.assertEqual(n, 1)              # the good row exported; the bad one skipped, not fatal
+
     def test_subscriber_failure_never_breaks_logging(self):
         cl = Colorless(ledger=self.path)
         cl.subscribe(lambda entry: (_ for _ in ()).throw(RuntimeError("boom")))  # bad subscriber

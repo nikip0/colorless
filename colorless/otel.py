@@ -24,6 +24,14 @@ from .ledger import Ledger
 _MAX_ARG_LEN = 4096
 
 
+def _as_int(v, default=-1):
+    """Coerce safely — a foreign/corrupt row with a non-int seq must not crash the exporter."""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return default
+
+
 def genai_attributes(entry: dict) -> dict:
     """Map one sealed ledger entry to OpenTelemetry GenAI semantic-convention attributes (plus a
     `colorless.*` namespace for the gate decision + chain hash). Pure — no OTel needed."""
@@ -35,7 +43,7 @@ def genai_attributes(entry: dict) -> dict:
         "colorless.executed": bool(entry.get("executed", False)),
         "colorless.ok": bool(entry.get("ok", False)),
         "colorless.ref": entry.get("ref", ""),
-        "colorless.seq": int(entry.get("seq", -1)),
+        "colorless.seq": _as_int(entry.get("seq")),
         "colorless.row_hash": entry.get("row_hash", ""),
     }
     args = action.get("args")
@@ -91,6 +99,9 @@ def export_ledger(path: str, tracer=None) -> int:
     emitter = OtelEmitter(tracer or _default_tracer())
     n = 0
     for entry in Ledger(path).entries():
-        emitter.emit(entry)
-        n += 1
+        try:
+            emitter.emit(entry)
+            n += 1
+        except Exception:
+            continue   # one bad row (or a backend rejecting an attr) must not abort the whole batch
     return n

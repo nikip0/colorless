@@ -115,14 +115,13 @@ def queue_approval(queue: ApprovalQueue, poll: float = 0.5, timeout: float = 300
     """
     def on_approval(action, decision):
         rid = queue.request(action)
-        waited = 0.0
-        while waited < timeout:
+        deadline = time.monotonic() + timeout   # wall-clock: each get() also costs real time
+        while time.monotonic() < deadline:
             rec = queue.get(rid)
             if rec and rec.get("status") != "pending":
                 # dict carries the approver through to the ledger (who authorized it)
                 return {"approved": rec["status"] == "approved", "approver": rec.get("approver")}
             time.sleep(poll)
-            waited += poll
         return {"approved": False, "approver": None}  # timed out → deny (never auto-approve on silence)
 
     return on_approval

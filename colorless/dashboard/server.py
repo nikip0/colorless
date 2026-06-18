@@ -27,14 +27,18 @@ class DashboardData:
         self.ledger = Ledger(ledger_path)
         self.queue = queue
         self._verify_ttl = verify_ttl
+        self._lock = threading.Lock()   # guards the caches across ThreadingHTTPServer handler threads
         self._verify_cache = None       # (ts, result) — don't re-hash the whole chain every poll
+        self._stats_cache = None        # (ts, result) — stats scans the WHOLE ledger; don't do it per poll
 
     def _verify_cached(self) -> dict:
         now = time.time()
-        if self._verify_cache and now - self._verify_cache[0] < self._verify_ttl:
-            return self._verify_cache[1]
-        v = self.ledger.verify()
-        self._verify_cache = (now, v)
+        with self._lock:
+            if self._verify_cache and now - self._verify_cache[0] < self._verify_ttl:
+                return self._verify_cache[1]
+        v = self.ledger.verify()        # computed outside the lock; at worst a rare double-verify
+        with self._lock:
+            self._verify_cache = (now, v)
         return v
 
     def feed(self, limit: int = 500) -> list:
@@ -44,6 +48,16 @@ class DashboardData:
         return self.ledger.verify()
 
     def stats(self) -> dict:
+        now = time.time()
+        with self._lock:
+            if self._stats_cache and now - self._stats_cache[0] < self._verify_ttl:
+                return self._stats_cache[1]
+        result = self._compute_stats()  # full-ledger scan + verify, computed off the lock
+        with self._lock:
+            self._stats_cache = (now, result)
+        return result
+
+    def _compute_stats(self) -> dict:
         rows = self.ledger.entries()
         by_decision: dict = {}
         tools: dict = {}
@@ -87,6 +101,8 @@ def make_handler(data: DashboardData, token: "str | None" = None, tokens: "dict 
     _auth_lock = threading.Lock()
 
     class Handler(BaseHTTPRequestHandler):
+        timeout = 30  # drop slow / half-open connections so they can't tie up a handler thread (Slowloris)
+
         def log_message(self, *args):
             pass  # quiet by default
 

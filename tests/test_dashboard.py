@@ -132,6 +132,11 @@ class DashboardDataTest(unittest.TestCase):
         self.assertEqual(s["pending"], 1)
         self.assertTrue(s["integrity_ok"])
 
+    def test_stats_is_cached_within_ttl(self):
+        # stats() scans the WHOLE ledger; a fast second poll must hit the cache, not re-scan
+        data, _ = self._seed()
+        self.assertIs(data.stats(), data.stats())   # same object back -> served from cache
+
     def test_approve_via_data_layer(self):
         data, q = self._seed()
         rid = q.pending()[0]["id"]

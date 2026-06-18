@@ -74,6 +74,19 @@ class AlertsTest(unittest.TestCase):
     def test_post_json_swallows_failure(self):
         self.assertIsNone(post_json("http://127.0.0.1:1/", {"x": 1}, timeout=1))   # refused -> None, no raise
 
+    def test_background_dispatch_delivers_via_shared_worker(self):
+        # background=True now routes through ONE shared bounded-queue worker (not a thread per alert)
+        import colorless.alerts as alerts_mod
+        sink = _Sink()
+        cl = Colorless(ledger=self.path).deny("danger")
+        cl.subscribe(slack_alerter("http://x", sender=sink, background=True))
+        with self.assertRaises(PolicyDenied):
+            cl.run("danger", {}, lambda: "boom")
+        self.assertIsNotNone(alerts_mod._alert_q)   # lazily started on first background alert
+        alerts_mod._alert_q.join()                  # deterministic: wait for the worker to drain
+        self.assertEqual(len(sink.calls), 1)
+        self.assertIn("blocked", sink.calls[0][1]["text"])
+
 
 if __name__ == "__main__":
     unittest.main()
