@@ -170,7 +170,13 @@ SDK, so the core stays zero-dependency:
 
 - **MCP** — `colorless.integrations.mcp` + `examples/mcp_server.py` (FastMCP). Gate + seal every tool an MCP client calls. `pip install mcp`.
 - **LangChain / LangGraph** — `guard_tools(cl, tools)` in `colorless.integrations.langchain` + `examples/langchain_agent.py`. One line wraps your entire tool list. `pip install langchain-core`.
+- **CrewAI** — `colorless.integrations.crewai.guard_tools(cl, tools)` — wrap a crew's tools.
+- **LlamaIndex** — `colorless.integrations.llamaindex.guard_tools(cl, tools)` — wraps `FunctionTool`s.
+- **OpenAI Agents SDK** — `@guard(cl)` under `@function_tool` (`colorless.integrations.openai_agents`).
 - **OpenAI / Anthropic tool calls** — use `ToolGuard.call(name, args)` directly in your loop (`examples/agent_loop.py`).
+
+All the framework adapters share one duck-typed wrapper (no SDK imports), so they track each
+framework's API across versions and wrap only the leaf callable (no double-logging).
 
 ## Content guardrails
 

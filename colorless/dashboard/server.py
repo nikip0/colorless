@@ -23,9 +23,19 @@ _UI = os.path.join(os.path.dirname(__file__), "ui.html")
 
 
 class DashboardData:
-    def __init__(self, ledger_path: str, queue: "ApprovalQueue | None" = None):
+    def __init__(self, ledger_path: str, queue: "ApprovalQueue | None" = None, verify_ttl: float = 15.0):
         self.ledger = Ledger(ledger_path)
         self.queue = queue
+        self._verify_ttl = verify_ttl
+        self._verify_cache = None       # (ts, result) — don't re-hash the whole chain every poll
+
+    def _verify_cached(self) -> dict:
+        now = time.time()
+        if self._verify_cache and now - self._verify_cache[0] < self._verify_ttl:
+            return self._verify_cache[1]
+        v = self.ledger.verify()
+        self._verify_cache = (now, v)
+        return v
 
     def feed(self, limit: int = 500) -> list:
         return list(reversed(self.ledger.tail(limit)))  # newest first; tail() is indexed on sqlite
@@ -45,7 +55,7 @@ class DashboardData:
             tools[name] = tools.get(name, 0) + 1
             if not r.get("executed", True):
                 blocked += 1
-        v = self.ledger.verify()
+        v = self._verify_cached()       # cached: avoids a full re-hash on every poll (/api/verify is fresh)
         return {
             "total": len(rows),
             "blocked": blocked,                 # catastrophes prevented
