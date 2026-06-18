@@ -31,17 +31,21 @@ Today most teams have neither. They have *traces* and *eval scores from developm
 
 ## Install
 
-Not on PyPI yet (the name isn't final). For now, from source — zero dependencies, so it's instant:
+Zero dependencies, so it's instant.
 
 ```bash
-git clone https://github.com/nikip0/colorless.git
-cd colorless
-pip install -e .
+# Python — installs as `colorless-audit`, imports as `colorless`
+pip install colorless-audit
+
+# JavaScript / TypeScript
+npm install @nikip0/colorless
 ```
 
 Or run straight from a clone with no install at all:
 
 ```bash
+git clone https://github.com/nikip0/colorless.git
+cd colorless
 python3 examples/quickstart.py
 ```
 
@@ -238,7 +242,7 @@ from colorless import Colorless
 from colorless.otel import instrument, export_ledger
 
 cl = Colorless("agent.jsonl")
-instrument(cl)                 # live: pip install 'colorless[otel]', or pass your own tracer
+instrument(cl)                 # live: pip install 'colorless-audit[otel]', or pass your own tracer
 export_ledger("agent.jsonl")   # or batch-replay an existing ledger into your backend
 ```
 

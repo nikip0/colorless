@@ -1,8 +1,9 @@
 {
-  "name": "colorless",
-  "version": "0.2.0",
+  "name": "@nikip0/colorless",
+  "version": "1.0.0",
   "description": "Authorize, gate, and prove every action your AI agent takes — tamper-evident, zero-dependency.",
   "type": "module",
+  "publishConfig": { "access": "public" },
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {

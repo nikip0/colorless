@@ -2,7 +2,7 @@
 existing observability stack (Datadog, Honeycomb, Grafana, ...) instead of being an island.
 
 Optional: the core stays zero-dependency. OpenTelemetry is only needed if you ask colorless to
-build a tracer for you (`pip install 'colorless[otel]'`); you can also pass any tracer-like object
+build a tracer for you (`pip install 'colorless-audit[otel]'`); you can also pass any tracer-like object
 (anything with `start_span(name) -> span` where the span has `set_attribute` and `end`).
 
     from colorless import Colorless
@@ -80,7 +80,7 @@ def _default_tracer():
         from opentelemetry import trace
     except ImportError as e:  # pragma: no cover - exercised only without the optional dep
         raise RuntimeError(
-            "OpenTelemetry is not installed. Run `pip install 'colorless[otel]'`, or pass your "
+            "OpenTelemetry is not installed. Run `pip install 'colorless-audit[otel]'`, or pass your "
             "own tracer to instrument()/export_ledger()."
         ) from e
     return trace.get_tracer("colorless")
