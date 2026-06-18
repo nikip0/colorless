@@ -15,3 +15,9 @@ notes/
 # dashboard approval-queue + lock artifacts
 *approvals*.json
 *.lock
+# sqlite ledger backends + WAL sidecars
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3

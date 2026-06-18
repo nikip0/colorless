@@ -21,6 +21,8 @@ from .ledger import GENESIS, canonical
 class JsonlStore:
     """Append-only JSONL file (the default)."""
 
+    backend = "jsonl"
+
     def __init__(self, path: str):
         self.path = str(path)
 
@@ -58,6 +60,8 @@ class SqliteStore:
     """sqlite3-backed store — indexed reads, append without rewriting the whole file. Each call
     uses its own connection (cheap, and safe across threads/processes; SQLite file-locks writes)."""
 
+    backend = "sqlite"
+
     def __init__(self, path: str):
         self.path = str(path)
         self._exec(self._create)
@@ -72,6 +76,7 @@ class SqliteStore:
 
     @staticmethod
     def _create(c):
+        c.execute("PRAGMA journal_mode=WAL")   # concurrent readers (dashboard) never block the writer
         c.execute(
             "CREATE TABLE IF NOT EXISTS entries ("
             "seq INTEGER PRIMARY KEY, ref TEXT, row_hash TEXT UNIQUE, "

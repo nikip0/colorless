@@ -22,6 +22,7 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(Ledger(_tmp(".db")).backend, "sqlite")
         self.assertEqual(Ledger(_tmp(".sqlite")).backend, "sqlite")
         self.assertEqual(Ledger(_tmp(".jsonl"), backend="sqlite").backend, "sqlite")  # explicit override
+        self.assertEqual(Ledger(store=SqliteStore(_tmp(".db"))).backend, "sqlite")    # injected store reports its backend
 
     def _exercise(self, path):
         led = Ledger(path)
