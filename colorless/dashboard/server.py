@@ -28,8 +28,7 @@ class DashboardData:
         self.queue = queue
 
     def feed(self, limit: int = 500) -> list:
-        rows = self.ledger.entries()
-        return list(reversed(rows[-limit:]))  # newest first, only the last `limit`
+        return list(reversed(self.ledger.tail(limit)))  # newest first; tail() is indexed on sqlite
 
     def verify(self) -> dict:
         return self.ledger.verify()

@@ -18,10 +18,12 @@ from .errors import ApprovalRequired, PolicyDenied, ColorlessError
 from .ledger import GENESIS, Ledger
 from .policy import ALLOW, APPROVE, DENY, Decision, Policy
 from .redaction import redact_secrets
+from .store import JsonlStore, SqliteStore
 
 __version__ = "0.2.0"
 __all__ = [
     "Colorless", "Policy", "Decision", "Ledger", "ToolGuard", "UnknownTool",
     "ColorlessError", "PolicyDenied", "ApprovalRequired", "redact_secrets",
+    "JsonlStore", "SqliteStore",
     "ALLOW", "DENY", "APPROVE", "GENESIS", "__version__",
 ]

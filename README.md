@@ -172,6 +172,22 @@ SDK, so the core stays zero-dependency:
 - **LangChain / LangGraph** — `guard_tools(cl, tools)` in `colorless.integrations.langchain` + `examples/langchain_agent.py`. One line wraps your entire tool list. `pip install langchain-core`.
 - **OpenAI / Anthropic tool calls** — use `ToolGuard.call(name, args)` directly in your loop (`examples/agent_loop.py`).
 
+## Storage backends
+
+The ledger is pluggable. **JSONL** is the zero-dependency, portable default; point it at a `.db` /
+`.sqlite` path (or pass `backend="sqlite"`) for the indexed, scalable stdlib-`sqlite3` backend —
+**same entries, same hashes**, so `verify` is backend-agnostic (a JSONL and a SQLite ledger of the
+same actions share the same head hash), and `verify` *streams* so it stays constant-memory on a
+million-row ledger.
+
+```python
+from colorless import Colorless
+cl = Colorless("agent.db")     # auto-detected SQLite: indexed head/tail/by-ref, no full rewrite
+```
+```bash
+colorless verify agent.db      # the CLI and dashboard work with either backend, auto-detected
+```
+
 ## OpenTelemetry
 
 Stream the audit into your existing observability stack — every gated action becomes an OTel GenAI
