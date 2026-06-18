@@ -48,6 +48,24 @@ class PolicyTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             Policy(default="maybe")
 
+    def test_predicate_error_fails_closed_to_deny(self):
+        # a when= predicate that raises (missing arg) must NOT crash the gate open — it denies
+        p = Policy().deny("transfer", when=lambda a: a["args"]["amount"] > 1000)
+        d = p.decide(act("transfer"))                  # no 'amount' -> KeyError inside the predicate
+        self.assertTrue(d.denied)
+        self.assertIn("predicate error", d.reason)
+
+    def test_early_allow_predicate_error_does_not_fall_through_to_allow(self):
+        # an exploding predicate on an earlier allow rule must not let a dangerous action slip past
+        p = (Policy()
+             .allow("tool", when=lambda a: a["args"]["safe"])      # raises: no 'safe' key
+             .deny("tool"))
+        self.assertTrue(p.decide(act("tool", amount=5000)).denied)  # fail-closed, never reaches allow
+
+    def test_non_callable_when_rejected_at_authoring(self):
+        with self.assertRaises(TypeError):
+            Policy().deny("x", when=True)              # author passed a bool, not a predicate
+
 
 if __name__ == "__main__":
     unittest.main()

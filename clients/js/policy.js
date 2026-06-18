@@ -38,6 +38,9 @@ export class Policy {
     this.rules = [];
   }
   _add(verdict, name, when, reason) {
+    if (when != null && typeof when !== "function") {
+      throw new TypeError(`\`when\` must be a function or null, got ${typeof when}`);
+    }
     this.rules.push(new Rule(verdict, name ?? null, when ?? null, reason || `matched ${verdict} rule`));
     return this;
   }
@@ -46,7 +49,14 @@ export class Policy {
   requireApproval(name, when, reason = "") { return this._add(APPROVE, name, when, reason); }
   decide(action) {
     for (const rule of this.rules) {
-      if (rule.matches(action)) return new Decision(rule.verdict, rule.reason, rule);
+      let matched;
+      try {
+        matched = rule.matches(action);
+      } catch (e) {
+        // a when() that throws must not crash the gate open — fail closed (deny), surfaced + sealed
+        return new Decision(DENY, `predicate error in ${rule.verdict} rule: ${e?.message || e}`, rule);
+      }
+      if (matched) return new Decision(rule.verdict, rule.reason, rule);
     }
     return new Decision(this.default, `default:${this.default}`);
   }

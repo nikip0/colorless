@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from .ledger import Ledger
@@ -57,9 +58,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    missing = not os.path.exists(args.ledger)   # capture before Ledger() (sqlite creates the file)
     led = Ledger(args.ledger)
 
     if args.cmd == "verify":
+        if missing:
+            # a deleted / mis-pathed ledger must FAIL, not pass as "ok, length 0" — else CI goes
+            # green when the audit trail is gone
+            print(json.dumps({"ok": False, "error": f"ledger not found: {args.ledger}"}, indent=2))
+            return 1
         res = led.verify()
         print(json.dumps(res, indent=2))
         return 0 if res["ok"] else 1
@@ -69,7 +76,7 @@ def main(argv=None) -> int:
         return 0
 
     if args.cmd == "tail":
-        for e in led.entries()[-args.n:]:
+        for e in led.tail(args.n):           # tail() guards n<=0 (entries()[-0:] would dump it all)
             name = (e.get("action") or {}).get("name", "")
             print(f"#{e.get('seq'):<4} {e.get('kind',''):<8} {str(e.get('ref',''))[:24]:<24} "
                   f"{name:<16} {e.get('decision','')}"

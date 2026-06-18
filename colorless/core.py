@@ -25,6 +25,9 @@ from .ledger import Ledger
 from .policy import APPROVE, DENY, Policy
 from .redaction import redact_secrets
 
+# marks a callable that guard() already wrapped, so the integration layer never double-wraps it
+GUARDED_MARK = "_colorless_guarded"
+
 
 def _safe(v):
     """Best-effort JSON-serialisable value for the ledger."""
@@ -188,12 +191,14 @@ class Colorless:
                 async def ainner(*args, **kwargs):
                     return await self.arun(action_name, _logged(args, kwargs),
                                            lambda: func(*args, **kwargs))
+                setattr(ainner, GUARDED_MARK, True)
                 return ainner
 
             @functools.wraps(func)
             def inner(*args, **kwargs):
                 return self.run(action_name, _logged(args, kwargs),
                                 lambda: func(*args, **kwargs))
+            setattr(inner, GUARDED_MARK, True)
             return inner
 
         return wrap(fn) if fn else wrap

@@ -25,7 +25,7 @@ export class ToolGuard {
 
   // { name: wrappedFn } where each is gated + logged.
   guarded() {
-    const out = {};
+    const out = Object.create(null);   // null-proto: out["__proto__"]/["toString"] can't resolve to inherited members
     for (const [name, fn] of Object.entries(this.tools)) {
       out[name] = this.cl.guard(fn, { name });
     }

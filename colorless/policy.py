@@ -55,6 +55,8 @@ class Policy:
         self.rules: list = []
 
     def _add(self, verdict, name, when, reason) -> "Policy":
+        if when is not None and not callable(when):
+            raise TypeError(f"`when` must be callable or None, got {type(when).__name__}")
         self.rules.append(_Rule(verdict, name, when, reason or f"matched {verdict} rule"))
         return self  # chainable
 
@@ -69,6 +71,13 @@ class Policy:
 
     def decide(self, action: dict) -> Decision:
         for rule in self.rules:
-            if rule.matches(action):
+            try:
+                matched = rule.matches(action)
+            except Exception as e:
+                # A `when=` predicate that raises (e.g. KeyError on a missing arg) must NEVER crash
+                # the gate open. Fail closed: deny the action — it flows through the normal deny path,
+                # so it's still sealed in the ledger — and surface the predicate error as the reason.
+                return Decision(DENY, f"predicate error in {rule.verdict} rule: {e}", rule)
+            if matched:
                 return Decision(rule.verdict, rule.reason, rule)
         return Decision(self.default, f"default:{self.default}")

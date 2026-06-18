@@ -28,3 +28,22 @@ test("first match wins", () => {
 test("invalid default throws", () => {
   assert.throws(() => new Policy("maybe"));
 });
+
+test("predicate error fails closed to deny", () => {
+  // a when() that throws (missing arg) must not crash the gate open — it denies
+  const p = new Policy().deny("transfer", (a) => a.args.amount > 1000);
+  const d = p.decide({ name: "transfer" });        // args undefined -> throws in predicate
+  assert.equal(d.denied, true);
+  assert.match(d.reason, /predicate error/);
+});
+
+test("early allow predicate error does not fall through to allow", () => {
+  const p = new Policy()
+    .allow("tool", (a) => a.args.safe)              // throws: args undefined
+    .deny("tool");
+  assert.equal(p.decide({ name: "tool" }).denied, true);
+});
+
+test("non-callable when throws at authoring", () => {
+  assert.throws(() => new Policy().deny("x", true), TypeError);
+});

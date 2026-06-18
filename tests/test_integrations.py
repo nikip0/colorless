@@ -142,6 +142,30 @@ class FrameworkAdapterTest(unittest.TestCase):
         self.assertIs(crewai.guard_tools, llamaindex.guard_tools)
         self.assertIs(crewai.guard_tools, guard_tools)   # langchain re-exports the same
 
+    def test_guard_tools_is_idempotent(self):
+        # re-running guard_tools on the same tool must NOT double-wrap (which would double-log)
+        cl = Colorless(self.path)
+        tool = _FakeBaseTool("act", lambda **k: "ok")
+        shared_guard_tools(cl, [tool])
+        shared_guard_tools(cl, [tool])                    # second pass — already guarded
+        tool.run(x=1)
+        self.assertEqual(len(cl.entries("act")), 1)       # exactly ONE entry, not two
+
+    def test_guard_tools_refuses_to_return_an_ungated_tool(self):
+        # an immutable tool whose leaf can't be replaced (and isn't itself callable) must RAISE,
+        # never be returned ungated (that would silently defeat the gate)
+        cl = Colorless(self.path)
+
+        class _Immutable:
+            name = "immutable"
+            def _run(self, **k):
+                return "x"
+            def __setattr__(self, *a):
+                raise AttributeError("immutable")       # leaf exists but can't be replaced
+
+        with self.assertRaises(TypeError):
+            shared_guard_tools(cl, [_Immutable()])      # leaf found, setattr blocked, not callable -> raise
+
 
 if __name__ == "__main__":
     unittest.main()

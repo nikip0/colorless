@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Iterable, List
 
-from ..core import Colorless
+from ..core import GUARDED_MARK, Colorless
 
 # leaf callables, in priority order. The explicit function (func/fn) is preferred over the _run
 # method (which usually delegates to it) so we never wrap both and double-count a single call.
@@ -42,20 +42,31 @@ def guard_tools(colorless: Colorless, tools: Iterable) -> List:
     for t in tools:
         name = _name_of(t)
         wrapped = False
+        leaf_found = False
         for group in (_SYNC_ATTRS, _ASYNC_ATTRS):
             for attr in group:
                 fn = getattr(t, attr, None)
                 if callable(fn):
-                    try:
-                        setattr(t, attr, colorless.guard(fn, name=name))
-                        wrapped = True
-                    except Exception:
-                        pass            # immutable tool object — fall back to guarding the callable
-                    break               # only the first (leaf) callable per group → no double-wrap
+                    leaf_found = True
+                    if getattr(fn, GUARDED_MARK, False):
+                        wrapped = True          # already guarded — idempotent, don't re-wrap
+                    else:
+                        try:
+                            setattr(t, attr, colorless.guard(fn, name=name))
+                            wrapped = True
+                        except Exception:
+                            pass                # immutable leaf — handled in the else below
+                    break                       # only the first (leaf) callable per group → no double-wrap
         if wrapped:
             out.append(t)
-        elif callable(t):
-            out.append(colorless.guard(t, name=name))
+        elif not leaf_found and callable(t):
+            # a plain callable (or a tool that IS its own callable); guard it, unless already guarded
+            out.append(t if getattr(t, GUARDED_MARK, False) else colorless.guard(t, name=name))
         else:
-            out.append(t)
+            # A leaf callable existed but couldn't be replaced (immutable tool), or nothing here is
+            # gateable. Returning it UNGATED would silently defeat the gate — refuse loudly instead.
+            raise TypeError(
+                f"colorless.guard_tools: cannot gate tool {name!r} — its underlying callable could "
+                f"not be wrapped (immutable tool object?) and the tool itself isn't callable. Wrap "
+                f"the function before building the tool, or pass the raw callable.")
     return out

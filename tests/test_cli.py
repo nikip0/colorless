@@ -18,6 +18,14 @@ def _run(argv):
         return main(argv)
 
 
+def _run_capture(argv):
+    """Run the CLI, return (exit_code, stdout)."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = main(argv)
+    return code, buf.getvalue()
+
+
 class CliTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
@@ -48,6 +56,17 @@ class CliTest(unittest.TestCase):
     def test_head_and_tail_ok(self):
         self.assertEqual(_run(["head", self.path]), 0)
         self.assertEqual(_run(["tail", self.path, "-n", "2"]), 0)
+
+    def test_tail_zero_prints_nothing(self):
+        # `tail -n 0` must print 0 rows, not the whole ledger (the entries()[-0:] footgun)
+        code, out = _run_capture(["tail", self.path, "-n", "0"])
+        self.assertEqual(code, 0)
+        self.assertEqual(out.strip(), "")
+
+    def test_verify_missing_ledger_exits_one(self):
+        # a deleted / mis-pathed ledger must FAIL verify, not pass as "ok, length 0"
+        gone = os.path.join(self.dir, "does_not_exist.jsonl")
+        self.assertEqual(_run(["verify", gone]), 1)
 
     def test_anchor_then_verify_anchor(self):
         anchor = os.path.join(self.dir, "a.json")
