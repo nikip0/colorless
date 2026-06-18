@@ -145,6 +145,24 @@ class GuardTest(unittest.TestCase):
         self.assertIn("***", err)
         self.assertTrue(w.verify()["ok"])
 
+    def test_failing_redactor_still_seals_a_blocked_action(self):
+        # a redactor that raises must not crash the gate before the denial is recorded
+        def boom_redactor(args):
+            raise RuntimeError("redactor crashed")
+
+        w = self._w(redact=boom_redactor).deny("danger")
+
+        @w.guard
+        def danger():
+            return "boom"
+
+        with self.assertRaises(PolicyDenied):
+            danger()
+        e = w.entries(ref="danger")[0]              # still sealed despite the redactor failing
+        self.assertEqual(e["decision"], "deny")
+        self.assertFalse(e["executed"])
+        self.assertTrue(w.verify()["ok"])
+
     def test_check_does_not_log(self):
         w = self._w().deny("x")
         d = w.check("x")

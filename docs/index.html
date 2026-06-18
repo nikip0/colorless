@@ -128,7 +128,7 @@
   </div>
   <div class="trust">
     <span>● Zero dependencies</span><span>● MIT licensed</span>
-    <span>● 49 tests, all green</span><span>● MCP · LangChain · OpenAI</span>
+    <span>● tested + CI-green (Python · JS)</span><span>● MCP · LangChain · OpenAI</span>
   </div>
 </div></header>
 
@@ -205,10 +205,12 @@ cl.<span class="c-fn">verify</span>()  <span class="c-com"># {"ok": True, ...} �
   <h2>Five lines and a clone away</h2>
   <p class="lead">Zero dependencies, so it installs instantly. A hosted dashboard — live action feed,
     approvals from your phone, one-click compliance export — is coming next.</p>
-<pre class="mono">git clone https://github.com/nikip0/colorless.git
-cd colorless && pip install -e .
+<pre class="mono">pip install colorless-audit        <span class="c-com"># Python — imports as `colorless`</span>
+npm install @nikip0/colorless      <span class="c-com"># JavaScript / TypeScript</span>
 
-python3 examples/quickstart.py   <span class="c-com"># watch it block + prove, no setup</span></pre>
+<span class="c-com"># or run from a clone, zero install:</span>
+git clone https://github.com/nikip0/colorless.git
+cd colorless && python3 examples/quickstart.py</pre>
 
   <div class="endcta">
     <h2>Don't give your agents root access and no manager.</h2>

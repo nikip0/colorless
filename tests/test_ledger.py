@@ -122,6 +122,17 @@ class LedgerTest(unittest.TestCase):
         self.assertIsNone(parsed["big"])
         self.assertTrue(self.led.verify()["ok"])
 
+    def test_integer_valued_float_serializes_like_int(self):
+        # 10.0 must serialize as "10" (matching JS JSON.stringify) so amounts/counts cross-lang verify
+        from colorless.ledger import canonical
+        self.assertEqual(canonical({"amount": 10.0}), canonical({"amount": 10}))
+        self.assertEqual(canonical({"amount": 10.0}), '{"amount":10}')
+        self.led.append("action", ref="pay", amount=5.0, fee=2.5)
+        self.assertTrue(self.led.verify()["ok"])
+        row = json.loads(self._lines()[0])
+        self.assertEqual(row["amount"], 5)      # 5.0 -> 5
+        self.assertEqual(row["fee"], 2.5)       # non-integer float kept as-is
+
     def test_payload_cannot_overwrite_chain_fields(self):
         # a caller-supplied key named seq/ts must not clobber the structural field & corrupt the chain
         self.led.append("action", ref="x", seq=999, ts="2000-01-01T00:00:00", note="hi")

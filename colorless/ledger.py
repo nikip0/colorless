@@ -34,12 +34,17 @@ def _json_default(o):
 
 
 def _sanitize(o):
-    """Normalise non-finite floats (NaN / Infinity) to None. json.dumps would otherwise emit the
-    bare tokens `NaN`/`Infinity` — invalid JSON that a strict parser (every non-Python verifier)
-    rejects — so this keeps the chain valid JSON and matches JS's JSON.stringify(NaN) === null,
-    preserving cross-language verify."""
+    """Normalise numbers so the chain is valid JSON and hashes identically across languages:
+      - NaN / Infinity -> None (json.dumps would otherwise emit the invalid tokens `NaN`/`Infinity`,
+        which every non-Python verifier rejects; matches JS's JSON.stringify(NaN) === null).
+      - an integer-valued float (10.0) -> int (10), so Python emits "10" like JS's JSON.stringify
+        (JS cannot tell 10.0 from 10), letting an amount/count cross-language-verify.
+    The one residual cross-language edge is a float that serialises in scientific notation
+    (e.g. 1e-7, very small/large) — Python and JS format those differently."""
     if isinstance(o, float):
-        return o if math.isfinite(o) else None
+        if not math.isfinite(o):
+            return None
+        return int(o) if o.is_integer() else o
     if isinstance(o, dict):
         return {k: _sanitize(v) for k, v in o.items()}
     if isinstance(o, (list, tuple)):
@@ -48,8 +53,9 @@ def _sanitize(o):
 
 
 def canonical(payload: dict) -> str:
-    """Deterministic JSON — sorted keys, no whitespace, non-finite floats normalised to null — so
-    the same entry always hashes identically and verify can reproduce the write-time hash."""
+    """Deterministic JSON — sorted keys, no whitespace, numbers normalised (see `_sanitize`) — so
+    the same entry always hashes identically (and cross-language) and verify can reproduce the
+    write-time hash."""
     return json.dumps(_sanitize(payload), sort_keys=True, separators=(",", ":"), default=_json_default)
 
 

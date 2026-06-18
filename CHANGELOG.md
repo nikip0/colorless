@@ -3,6 +3,22 @@
 All notable changes to colorless are documented here. This project follows
 [Semantic Versioning](https://semver.org).
 
+## [1.0.1] — 2026-06-18
+
+Polish + correctness pass before wider hand-off. No API changes.
+
+### Fixed
+- **Cross-language verify for floats** — an integer-valued float (e.g. `10.0`) now serialises as
+  `10` (matching JS's `JSON.stringify`), so a Python-written ledger containing amounts/counts
+  verifies with the JS SDK and vice-versa. (Scientific-notation floats remain the one edge.)
+- **Gate always seals** — a failing redactor (or a non-dict `args`) can no longer crash the gate
+  *before* a blocked action is recorded; it now falls back to a marker and still seals the decision.
+- **Correct version strings** — `colorless.__version__` and the JS `VERSION` export were stuck at
+  `0.2.0`.
+- **Docs/install accuracy** — README, the JS README, and the docs site now show the real package
+  names (`pip install colorless-audit`, `npm install @nikip0/colorless`), drop the stale `v0.2` /
+  "49 tests" claims, and note the cross-language float edge.
+
 ## [1.0.0] — 2026-06-17
 
 First public release. Distributed as `colorless-audit` on PyPI (imports as `colorless`)

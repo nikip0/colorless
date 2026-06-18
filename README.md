@@ -8,10 +8,11 @@ Tamper-evident. Zero dependencies. ~5 lines of code.
 ![dependencies](https://img.shields.io/badge/dependencies-0-blueviolet)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
-> v0.2 — early but real, and useful today: policy gating, a tamper-evident ledger, sync **and
-> async** guards, tool-call adapters (OpenAI/Anthropic/MCP/LangChain), **secret-redaction by
-> default**, thread-safe appends, and a `colorless` CLI — all zero-dependency, 49 tests green.
-> The hosted dashboard + team features are on the roadmap below.
+> v1.0 — policy gating, a tamper-evident ledger, sync **and async** guards, tool-call adapters
+> (OpenAI/Anthropic/MCP/LangChain/CrewAI/LlamaIndex), content guardrails + **secret-redaction by
+> default**, an MCP security scan, a stdlib dashboard, OpenTelemetry export, a JS/TS SDK, and a
+> `colorless` CLI — all zero-dependency, CI-green across Python + JS. A *hosted* dashboard + team
+> features are on the roadmap below.
 
 ---
 
@@ -71,7 +72,7 @@ Then, at any time:
 
 ```python
 w.verify()
-# {"ok": True, "length": 412, "head": "9f3c…"}   <- cryptographic proof nothing was altered
+# {"ok": True, "length": 412, "head": "9f3c…", "broken_at": None}   <- cryptographic proof nothing was altered
 ```
 
 Tamper with a single past entry — edit it, delete it, reorder it — and `verify()` tells you
@@ -268,7 +269,7 @@ colorless has a zero-dependency JS/TS SDK too (`clients/js`) — first-class Typ
 `colorless verify` CLI.
 
 ```ts
-import { Colorless } from "colorless";
+import { Colorless } from "@nikip0/colorless";
 
 const cl = new Colorless({ ledger: "agent.jsonl" });
 cl.requireApproval("refund", (a) => a.args.amount > 100);

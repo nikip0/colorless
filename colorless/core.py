@@ -96,7 +96,13 @@ class Colorless:
 
     # --- gating internals -----------------------------------------------------
     def _logged_args(self, args: dict) -> dict:
-        return self.redact(dict(args)) if self.redact else args
+        # Redaction / dict-coercion must NEVER crash the gate before the action is sealed — otherwise
+        # a blocked action neither runs nor leaves an audit trace. Fail safe to a marker and still
+        # log (no raw args, in case the redactor failed mid-way over something sensitive).
+        try:
+            return self.redact(dict(args)) if self.redact else args
+        except Exception as e:
+            return {"_redaction_error": type(e).__name__}
 
     def _logged_value(self, v):
         """Run a single logged value (a tool RESULT or an ERROR message) through the same redactor

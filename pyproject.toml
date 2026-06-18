@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 # PyPI distribution name (the bare `colorless` is taken by an abandoned 0.0.1 placeholder).
 # The import name is unchanged: `pip install colorless-audit` then `import colorless`.
 name = "colorless-audit"
-version = "1.0.0"
+version = "1.0.1"
 description = "Authorize, gate, and prove every action your AI agent takes — tamper-evident, zero-dependency."
 readme = "README.md"
 requires-python = ">=3.9"
