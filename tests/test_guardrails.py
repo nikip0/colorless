@@ -33,6 +33,13 @@ class DetectionTest(unittest.TestCase):
     def test_benign_text_is_clean(self):
         self.assertEqual(find("the weather is lovely today, 72 degrees"), set())
 
+    def test_ip_octets_are_range_checked(self):
+        self.assertIn("ip", find("server at 10.0.0.1"))                 # valid
+        self.assertNotIn("ip", find("version 999.999.999.999"))         # impossible octets -> not an IP
+
+    def test_all_same_digit_run_is_not_a_card(self):
+        self.assertNotIn("credit_card", find("id 0000000000000000"))    # Luhn-valid but never a real card
+
     def test_detects_numeric_pii(self):
         self.assertIn("credit_card", scan({"card": 4111111111111111}))   # card as an int
         self.assertEqual(scan({"qty": 3, "ready": True}), set())          # ordinary number/bool clean
@@ -86,6 +93,12 @@ class RedactionTest(unittest.TestCase):
         self.assertIn("[email]", out["msg"])
         self.assertIn("[phone]", out["msg"])
         self.assertEqual(out["nested"]["ip"], "[ip]")
+
+    def test_redact_pii_digit_heavy_email_not_mauled_into_phone(self):
+        # email whose local-part is a 10-digit run: must redact as a whole email, not [phone]@host
+        out = redact_pii({"to": "4155552671@hospital.com"})
+        self.assertEqual(out["to"], "[email]")
+        self.assertNotIn("hospital.com", out["to"])      # domain must not leak
 
     def test_redact_pii_masks_numeric(self):
         out = redact_pii({"card": 4111111111111111, "qty": 3})

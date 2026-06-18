@@ -95,6 +95,18 @@ class Colorless:
     def _logged_args(self, args: dict) -> dict:
         return self.redact(dict(args)) if self.redact else args
 
+    def _logged_value(self, v):
+        """Run a single logged value (a tool RESULT or an ERROR message) through the same redactor
+        as the args, so secrets/PII that a tool returns or that surface in an exception don't leak
+        into the tamper-evident ledger (where they can never be scrubbed). Falls back to the raw
+        value if the redactor can't handle a wrapped scalar."""
+        if self.redact is None or v is None:
+            return v
+        try:
+            return self.redact({"_": v}).get("_", v)
+        except Exception:
+            return v
+
     def _gate(self, action: dict):
         """Evaluate policy; record + raise on deny / unapproved; else return (decision, log_action,
         approver). `approver` is who authorized an approval-gated action (or None)."""
@@ -124,9 +136,9 @@ class Colorless:
             if approver:
                 payload["approver"] = approver   # who authorized it — sealed in the chain
         if ok and result is not None:
-            payload["result"] = _safe(result)
+            payload["result"] = _safe(self._logged_value(result))
         if not ok:
-            payload["error"] = error
+            payload["error"] = self._logged_value(error)
         return self._write(name, **payload)
 
     def run(self, name: str, arguments: dict, fn: Callable[[], object]):

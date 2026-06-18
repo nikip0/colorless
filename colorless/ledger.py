@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import threading
 from datetime import datetime, timezone
@@ -32,10 +33,24 @@ def _json_default(o):
     return o.isoformat() if isinstance(o, datetime) else str(o)
 
 
+def _sanitize(o):
+    """Normalise non-finite floats (NaN / Infinity) to None. json.dumps would otherwise emit the
+    bare tokens `NaN`/`Infinity` — invalid JSON that a strict parser (every non-Python verifier)
+    rejects — so this keeps the chain valid JSON and matches JS's JSON.stringify(NaN) === null,
+    preserving cross-language verify."""
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _sanitize(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_sanitize(v) for v in o]
+    return o
+
+
 def canonical(payload: dict) -> str:
-    """Deterministic JSON — sorted keys, no whitespace — so the same entry always
-    hashes identically and verify can reproduce the write-time hash."""
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=_json_default)
+    """Deterministic JSON — sorted keys, no whitespace, non-finite floats normalised to null — so
+    the same entry always hashes identically and verify can reproduce the write-time hash."""
+    return json.dumps(_sanitize(payload), sort_keys=True, separators=(",", ":"), default=_json_default)
 
 
 def _sha(s: str) -> str:
@@ -79,12 +94,15 @@ class Ledger:
         with self._lock:
             h = self.store.head()
             prev = h["head"]
+            # payload first, then the chain/meta fields — so a caller-supplied payload key named
+            # seq/ts/kind/ref can never silently overwrite a structural field and corrupt the chain
+            # (key order is irrelevant to the hash: canonical() sorts keys).
             entry = {
+                **payload,
                 "seq": h["length"],
                 "ts": datetime.now(timezone.utc).isoformat(),
                 "kind": kind,
                 "ref": str(ref or ""),
-                **payload,
             }
             ch = content_hash(entry)
             entry["content_hash"] = ch
@@ -154,6 +172,9 @@ class Ledger:
         except (OSError, ValueError):
             return {"anchored": False, "reason": "no anchor published yet"}
         head = a.get("head")
+        if not head:
+            # a truncated/corrupt anchor with no head commits nothing — don't report it as a match
+            return {"anchored": False, "reason": "anchor missing head — malformed or truncated"}
         present = any(r.get("row_hash") == head for r in self.store.iter_all())
         if head and head != GENESIS and not present:
             return {"anchored": True, "matches": False, "anchored_head": head,

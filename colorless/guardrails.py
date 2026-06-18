@@ -44,9 +44,18 @@ _INJECTION = re.compile(
 _PII_CATEGORIES = frozenset({"email", "phone", "ssn", "ip", "credit_card"})
 
 
+def _valid_ip(s: str) -> bool:
+    """A dotted-quad whose octets are all in 0..255 — rejects e.g. 999.999.999.999 (and the many
+    version-string-shaped false positives the bare regex would otherwise flag)."""
+    parts = s.split(".")
+    return len(parts) == 4 and all(p.isdigit() and len(p) <= 3 and int(p) <= 255 for p in parts)
+
+
 def _luhn(s: str) -> bool:
     digits = [int(c) for c in s if c.isdigit()]
     if not 13 <= len(digits) <= 19:
+        return False
+    if len(set(digits)) == 1:        # 0000…/1111… can be Luhn-valid but is never a real card
         return False
     total = 0
     for i, d in enumerate(reversed(digits)):
@@ -63,9 +72,11 @@ def find(text) -> set:
     cats = set()
     if not isinstance(text, str):
         return cats
-    for name, rx in _PII.items():
-        if rx.search(text):
+    for name in ("email", "phone", "ssn"):
+        if _PII[name].search(text):
             cats.add(name)
+    if any(_valid_ip(m.group()) for m in _PII["ip"].finditer(text)):   # octet-validated
+        cats.add("ip")
     if any(_luhn(m.group()) for m in _CC_CANDIDATE.finditer(text)):
         cats.add("credit_card")
     if _INJECTION.search(text):
@@ -111,12 +122,14 @@ def has_injection(action: dict) -> bool:
 
 # --- PII redaction (so detected PII doesn't itself land in the ledger) ---
 def _redact_text(s: str) -> str:
-    # cards first (longest digit run) so the phone matcher can't eat part of a card and mislabel it
+    # Order matters. Cards first (longest digit run, so the phone matcher can't eat part of a card
+    # and mislabel it). Then EMAIL before phone: an email local-part that is a 10-digit run
+    # (4155552671@host.com) would otherwise be mauled into "[phone]@host.com", leaking the domain.
     s = _CC_CANDIDATE.sub(lambda m: "[card]" if _luhn(m.group()) else m.group(), s)
+    s = _PII["email"].sub("[email]", s)
     s = _PII["ssn"].sub("[ssn]", s)
     s = _PII["phone"].sub("[phone]", s)
-    s = _PII["email"].sub("[email]", s)
-    s = _PII["ip"].sub("[ip]", s)
+    s = _PII["ip"].sub(lambda m: "[ip]" if _valid_ip(m.group()) else m.group(), s)
     return s
 
 

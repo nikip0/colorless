@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { GENESIS, Ledger } from "../ledger.js";
+import { canonical, GENESIS, Ledger } from "../ledger.js";
 
 const tmp = () => join(mkdtempSync(join(tmpdir(), "cl-")), "log.jsonl");
 const seed = (led, n = 4) => { for (let i = 0; i < n; i++) led.append("action", `tool_${i}`, { action: { name: `tool_${i}` }, ok: true }); };
@@ -70,4 +70,20 @@ test("tail truncation passes verify but fails anchor", () => {
   assert.equal(led.verify().ok, true); // shorter chain is self-consistent
   const a = led.verifyAgainstAnchor(anchorPath);
   assert.equal(a.matches, false);
+});
+
+test("malformed anchor without head is not a match", () => {
+  const p = tmp();
+  const led = new Ledger(p);
+  seed(led, 3);
+  const anchorPath = p + ".anchor.json";
+  writeFileSync(anchorPath, JSON.stringify({ length: 3 })); // no head field
+  const a = led.verifyAgainstAnchor(anchorPath);
+  assert.equal(a.anchored, false);
+  assert.notEqual(a.matches, true);
+});
+
+test("U+007F (DEL) is escaped to match Python ensure_ascii (cross-verify)", () => {
+  // Python's json.dumps escapes 0x7f to ; JS must too or a row fails `colorless verify`.
+  assert.equal(canonical({ v: "\x7f" }), '{"v":"\\u007f"}');
 });

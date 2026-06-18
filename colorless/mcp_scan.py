@@ -57,6 +57,30 @@ def _hidden_chars(s: str):
     return bad
 
 
+def _script(ch: str):
+    try:
+        nm = unicodedata.name(ch)
+    except ValueError:
+        return None
+    for s in ("LATIN", "CYRILLIC", "GREEK"):
+        if s in nm:
+            return s
+    return None
+
+
+def _mixed_script_words(text: str) -> list:
+    """Words that mix Latin with Cyrillic/Greek letters — the classic homoglyph disguise
+    ('Plеase ignоre' with Cyrillic е/о). Visible lookalike letters are normal Ll, not Cf/Cc, so
+    _hidden_chars misses them. Pure non-Latin text (a legitimately non-English description) mixes
+    no scripts, so it isn't flagged."""
+    out = []
+    for word in re.findall(r"[^\W\d_]+", text):          # runs of letters only (no digits/underscore)
+        scripts = {s for s in (_script(c) for c in word) if s}
+        if len(scripts) > 1:
+            out.append(word)
+    return out
+
+
 def _issues(text) -> list:
     out = []
     if not isinstance(text, str) or not text:
@@ -71,6 +95,9 @@ def _issues(text) -> list:
     if hidden:
         out.append(("hidden_unicode", f"{len(hidden)} invisible/control char(s): "
                                       f"{[c for _, c in hidden][:8]}"))
+    mixed = _mixed_script_words(text)
+    if mixed:
+        out.append(("homoglyph", "mixed-script word(s) (possible homoglyph): " + ", ".join(mixed[:5])))
     return out
 
 

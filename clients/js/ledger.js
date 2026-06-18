@@ -33,7 +33,9 @@ function escapeNonAscii(s) {
   let out = "";
   for (let i = 0; i < s.length; i++) {
     const code = s.charCodeAt(i);
-    out += code > 0x7f ? "\\u" + code.toString(16).padStart(4, "0") : s[i];
+    // >= 0x7f, not > 0x7f: Python's ensure_ascii escapes U+007F (DEL) too, so a literal 0x7f here
+    // would make a JS-written row fail `colorless verify` in Python (and vice-versa).
+    out += code >= 0x7f ? "\\u" + code.toString(16).padStart(4, "0") : s[i];
   }
   return out;
 }
@@ -68,12 +70,14 @@ export class Ledger {
   append(kind, ref = "", payload = {}) {
     const rows = this._read();
     const prev = rows.length ? rows[rows.length - 1].row_hash : GENESIS;
+    // payload first, then chain/meta fields — a payload key named seq/ts/kind/ref can't overwrite
+    // a structural field and corrupt the chain (key order doesn't affect the hash: canonical sorts).
     const entry = {
+      ...payload,
       seq: rows.length,
       ts: new Date().toISOString(),
       kind,
       ref: String(ref || ""),
-      ...payload,
     };
     const ch = contentHash(entry);
     entry.content_hash = ch;
@@ -124,6 +128,10 @@ export class Ledger {
       return { anchored: false, reason: "no anchor published yet" };
     }
     const head = a.head;
+    if (!head) {
+      // a truncated/corrupt anchor with no head commits nothing — don't report it as a match
+      return { anchored: false, reason: "anchor missing head — malformed or truncated" };
+    }
     const present = this._read().some((r) => r.row_hash === head);
     if (head && head !== GENESIS && !present) {
       return { anchored: true, matches: false, anchored_head: head,

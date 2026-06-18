@@ -53,12 +53,18 @@ class JsonlStore:
         return [r for r in self.read_all() if ref is None or r.get("ref") == ref]
 
     def tail(self, limit: int) -> list:
-        return self.read_all()[-int(limit):]
+        n = int(limit)
+        if n <= 0:                          # last 0 (or a nonsensical negative) -> nothing;
+            return []                       # NB: read_all()[-0:] would return the WHOLE ledger
+        return self.read_all()[-n:]
 
 
 class SqliteStore:
-    """sqlite3-backed store — indexed reads, append without rewriting the whole file. Each call
-    uses its own connection (cheap, and safe across threads/processes; SQLite file-locks writes)."""
+    """sqlite3-backed store — indexed reads, append without rewriting the whole file. Each call uses
+    its own connection (cheap); WAL mode lets concurrent readers (e.g. the dashboard) run without
+    blocking. Concurrent *writers* across processes are NOT supported: like the JSONL backend, the
+    Ledger's in-process lock serialises appends, so the model is a single writer per ledger
+    (two processes can read the same head and collide on the seq primary key — see Ledger.append)."""
 
     backend = "sqlite"
 
@@ -121,6 +127,9 @@ class SqliteStore:
         return self._exec(f)
 
     def tail(self, limit: int) -> list:
+        n = int(limit)
+        if n <= 0:                          # match JsonlStore: last 0 -> []. (A negative SQL LIMIT
+            return []                       # means "no limit" in sqlite, which would leak everything.)
         rows = self._exec(lambda c: c.execute(
-            "SELECT data FROM entries ORDER BY seq DESC LIMIT ?", (int(limit),)).fetchall())
+            "SELECT data FROM entries ORDER BY seq DESC LIMIT ?", (n,)).fetchall())
         return [json.loads(d) for (d,) in reversed(rows)]

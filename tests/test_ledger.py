@@ -101,6 +101,36 @@ class LedgerTest(unittest.TestCase):
         a = self.led.verify_against_anchor(os.path.join(self.dir, "nope.json"))
         self.assertFalse(a["anchored"])
 
+    def test_malformed_anchor_without_head_is_not_a_match(self):
+        # a corrupt/truncated anchor with no "head" commits nothing — it must NOT read as verified
+        self._seed(3)
+        bad = os.path.join(self.dir, "bad_anchor.json")
+        with open(bad, "w") as f:
+            json.dump({"length": 3}, f)              # no head field
+        a = self.led.verify_against_anchor(bad)
+        self.assertFalse(a["anchored"])
+        self.assertNotEqual(a.get("matches"), True)
+
+    def test_non_finite_floats_are_valid_json_and_verify(self):
+        # a tool returning NaN/Infinity must not poison the chain with invalid JSON tokens
+        self.led.append("action", ref="score", value=float("nan"), big=float("inf"))
+        line = self._lines()[0]
+        self.assertNotIn("NaN", line)
+        self.assertNotIn("Infinity", line)
+        parsed = json.loads(line)                    # strict parse succeeds (null, not NaN)
+        self.assertIsNone(parsed["value"])
+        self.assertIsNone(parsed["big"])
+        self.assertTrue(self.led.verify()["ok"])
+
+    def test_payload_cannot_overwrite_chain_fields(self):
+        # a caller-supplied key named seq/ts must not clobber the structural field & corrupt the chain
+        self.led.append("action", ref="x", seq=999, ts="2000-01-01T00:00:00", note="hi")
+        row = json.loads(self._lines()[0])
+        self.assertEqual(row["seq"], 0)              # real chain seq, not the payload's 999
+        self.assertNotEqual(row["ts"], "2000-01-01T00:00:00")
+        self.assertEqual(row["note"], "hi")          # ordinary payload still recorded
+        self.assertTrue(self.led.verify()["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()

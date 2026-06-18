@@ -50,6 +50,13 @@ export class Colorless {
     return this.redact ? this.redact(args) : args;
   }
 
+  // Run a single logged value (a tool RESULT or ERROR message) through the same redactor as args,
+  // so secrets/PII a tool returns or that surface in an error don't leak into the ledger.
+  _loggedValue(v) {
+    if (this.redact == null || v == null) return v;
+    try { return this.redact({ _: v })._ ?? v; } catch { return v; }
+  }
+
   async _gate(action) {
     const decision = this.policy.decide(action);
     const logAction = { name: action.name, args: this._loggedArgs(action.args || {}) };
@@ -74,8 +81,8 @@ export class Colorless {
   _record(name, logAction, decision, ok, result, error, approver) {
     const payload = { action: logAction, decision: decision.verdict, executed: true, ok };
     if (decision.needsApproval) { payload.approved = true; if (approver) payload.approver = approver; }
-    if (ok && result !== undefined) payload.result = safe(result);
-    if (!ok) payload.error = error;
+    if (ok && result != null) payload.result = safe(this._loggedValue(result));   // != null: omit null/undefined, matching Python's `is not None`
+    if (!ok) payload.error = this._loggedValue(error);
     return this._write(name, payload);
   }
 

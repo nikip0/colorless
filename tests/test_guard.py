@@ -116,6 +116,35 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(logged["api_key"], "***")
         self.assertEqual(logged["endpoint"], "/v1/x")
 
+    def test_result_is_redacted_before_logging(self):
+        # a tool that RETURNS a secret must not leak it into the immutable ledger (default redactor)
+        w = self._w()
+
+        @w.guard
+        def fetch_creds():
+            return {"api_key": "sk-LIVE1234567890", "ok": True}
+
+        fetch_creds()
+        logged = w.entries(ref="fetch_creds")[0]["result"]
+        self.assertEqual(logged["api_key"], "***")
+        self.assertTrue(logged["ok"])
+        self.assertTrue(w.verify()["ok"])
+
+    def test_error_message_is_redacted_before_logging(self):
+        # secrets embedded in an exception message must not leak into the ledger either
+        w = self._w()
+
+        @w.guard
+        def login():
+            raise RuntimeError("auth failed for Bearer sk-SECRETTOKEN12345")
+
+        with self.assertRaises(RuntimeError):
+            login()
+        err = w.entries(ref="login")[0]["error"]
+        self.assertNotIn("sk-SECRETTOKEN12345", err)
+        self.assertIn("***", err)
+        self.assertTrue(w.verify()["ok"])
+
     def test_check_does_not_log(self):
         w = self._w().deny("x")
         d = w.check("x")

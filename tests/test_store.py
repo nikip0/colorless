@@ -79,6 +79,17 @@ class StoreTest(unittest.TestCase):
         self.assertEqual(res["length"], 200)
         self.assertEqual(led.head()["length"], 200)
 
+    def test_tail_zero_returns_empty_on_both_backends(self):
+        # tail(0) means "last 0" -> []. JSONL's read_all()[-0:] would return the WHOLE ledger, and
+        # a negative SQL LIMIT means "no limit" — both must be guarded so the backends agree.
+        for ext in (".jsonl", ".db"):
+            led = Ledger(_tmp(ext))
+            for i in range(3):
+                led.append("action", "t", i=i)
+            self.assertEqual(led.tail(0), [], ext)
+            self.assertEqual(led.tail(-1), [], ext)
+            self.assertEqual(len(led.tail(2)), 2, ext)   # positive still works
+
     def test_colorless_with_sqlite(self):
         path = _tmp(".db")
         cl = Colorless(ledger=path).deny("danger")

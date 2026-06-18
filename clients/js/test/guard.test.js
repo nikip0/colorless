@@ -69,6 +69,34 @@ test("subscribe fires for every ledger entry (parity with Python)", async () => 
   assert.equal(seen[1].decision, "deny");
 });
 
+test("tool result is redacted before logging (parity with Python)", async () => {
+  const cl = new Colorless({ ledger: tmp() });
+  const fetchCreds = cl.guard(() => ({ api_key: "sk-LIVE1234567890", ok: true }), { name: "fetch_creds" });
+  await fetchCreds({});
+  const r = cl.entries("fetch_creds")[0].result;
+  assert.equal(r.api_key, "***");
+  assert.equal(r.ok, true);
+  assert.equal(cl.verify().ok, true);
+});
+
+test("secret in an error message is redacted before logging", async () => {
+  const cl = new Colorless({ ledger: tmp() });
+  const login = cl.guard(() => { throw new Error("auth failed for Bearer sk-SECRETTOKEN12345"); }, { name: "login" });
+  await assert.rejects(() => login({}), /auth failed/);
+  const err = cl.entries("login")[0].error;
+  assert.doesNotMatch(err, /sk-SECRETTOKEN12345/);
+  assert.match(err, /\*\*\*/);
+});
+
+test("a null return omits the result key (matches Python's is-not-None)", async () => {
+  const cl = new Colorless({ ledger: tmp() });
+  const noop = cl.guard(() => null, { name: "noop" });
+  await noop({});
+  const e = cl.entries("noop")[0];
+  assert.equal("result" in e, false);
+  assert.equal(e.ok, true);
+});
+
 test("onApproval can return {approved, approver} -> sealed in the ledger", async () => {
   const cl = new Colorless({ ledger: tmp(), onApproval: async () => ({ approved: true, approver: "alice" }) });
   cl.requireApproval("refund");
